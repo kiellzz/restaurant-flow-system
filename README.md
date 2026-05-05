@@ -1,50 +1,87 @@
-# Welcome to your Expo app 👋
+# 🍽️ Restaurant Flow System
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> A real-time restaurant order management system built to simulate a modern digital restaurant workflow.
 
-## Get started
+🚧 **Project status: In development**
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 🧠 Overview
 
-2. Start the app
+Restaurant Flow System is a mobile-first application that simulates a real restaurant ordering experience.
 
-   ```bash
-   npx expo start
-   ```
+Customers can browse a menu, place orders, and track their status in real time as the kitchen processes them.
 
-In the output, you'll find options to open the app in a
+---
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 📱 Current Scope
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+This initial version is focused on the **mobile experience only**, built with:
 
-## Get a fresh project
+- 📱 React Native (Expo)
+- ⚡ TypeScript
 
-When you're ready, run:
+The system will evolve into a full ecosystem in future iterations.
 
-```bash
-npm run reset-project
-```
+---
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## ⚙️ Tech Stack
 
-## Learn more
+![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Expo](https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🔄 Core Flow
 
-## Join the community
+1. User opens the menu  
+2. Adds items to cart  
+3. Places an order  
+4. Order is created and tracked  
+5. Status updates in real time:
+   - `pending`
+   - `preparing`
+   - `done`
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📦 Project Status
+
+🚧 Active development (Mobile MVP)
+
+- [x] Project architecture defined  
+- [ ] Menu system  
+- [ ] Cart system  
+- [ ] Order creation flow  
+- [ ] State management  
+- [ ] UI/UX refinement  
+
+---
+
+## 🎯 Goal
+
+This project is designed to practice and demonstrate:
+
+- React Native architecture
+- Clean TypeScript design
+- Mobile product thinking
+- Real-world application flow design
+
+---
+
+## 🚀 Future Expansion
+
+- Kitchen dashboard (web)
+- Backend integration
+- Real-time multi-device sync
+- Full restaurant system simulation
+
+---
+
+## 👨‍💻 Author
+
+**Ezequiel Borges**
+
+- GitHub: [kiellzz](https://github.com/kiellzz)
+- LinkedIn: [ezequielborgesdev](https://www.linkedin.com/in/ezequielborgesdev)
