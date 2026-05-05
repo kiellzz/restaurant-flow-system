@@ -1,98 +1,110 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { BottomBar } from '@/components/BottomBar';
+import { CategoryItem } from '@/components/CategoryItem';
+import { FoodCard } from '@/components/FoodCard';
+import { Header } from '@/components/Header';
+import { Colors } from '@/constants/Colors';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const CATEGORIES_DATA = [
+  { id: '1', name: 'Fish', image: 'https://via.placeholder.com/70' },
+  { id: '2', name: 'Rice', image: 'https://via.placeholder.com/70' },
+  { id: '3', name: 'Noodle', image: 'https://via.placeholder.com/70' },
+  { id: '4', name: 'Burger', image: 'https://via.placeholder.com/70' },
+];
+
+const DATA = [
+  { id: '1', name: 'Meat Burger', category: 'Snack', price: '$123,45', image: 'https://via.placeholder.com/150' },
+  { id: '2', name: 'Fish Stew', category: 'Main Course', price: '$123,45', image: 'https://via.placeholder.com/150' },
+  { id: '3', name: 'Fried Noodle', category: 'Main Course', price: '$123,45', image: 'https://via.placeholder.com/150' },
+  { id: '4', name: 'Juice Syrup', category: 'Drink', price: '$123,45', image: 'https://via.placeholder.com/150' },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const tabBarHeight = useBottomTabBarHeight();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // BottomBar: 80 altura + 20 bottom offset + 16 folga
+  const bottomPadding = tabBarHeight + 80 + 20 + 16;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={DATA}
+        keyExtractor={item => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        ListHeaderComponent={() => (
+          <View style={styles.headerArea}>
+            <Header />
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Categories</Text>
+              <TouchableOpacity>
+                <Text style={styles.seeAllText}>See All →</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              horizontal
+              data={CATEGORIES_DATA}
+              keyExtractor={item => item.id}
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <CategoryItem label={item.name} iconUri={item.image} />
+              )}
+              contentContainerStyle={styles.categoriesList}
+            />
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <FoodCard
+            name={item.name}
+            category={item.category}
+            price={item.price}
+          />
+        )}
+        contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
+      />
+
+      <BottomBar />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-  stepContainer: {
-    gap: 8,
+  list: {
+    padding: 16,
+  },
+  row: {
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  headerArea: {
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 25,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  seeAllText: {
+    color: '#FFF',
+    opacity: 0.8,
+    fontSize: 14,
+  },
+  categoriesList: {
+    paddingBottom: 10,
   },
 });
