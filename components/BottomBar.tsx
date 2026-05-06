@@ -1,28 +1,83 @@
 import { Colors } from '@/constants/Colors';
 import { Feather } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-export function BottomBar() {
+type BottomBarProps = {
+  totalItems: number;
+  totalPrice: number;
+};
+
+export function BottomBar({ totalItems, totalPrice }: BottomBarProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0.85,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [totalItems]);
+
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        },
+      ]}
+    >
       <View style={styles.infoContainer}>
-        <Text style={styles.itemsCount}>4 items selected</Text>
-        <Text style={styles.itemsDetails}>Dish Fish and Juice Syrup</Text>
+        <Text style={styles.itemsCount}>
+          {totalItems} items selected
+        </Text>
+        <Text style={styles.itemsDetails} />
       </View>
-      
+
       <TouchableOpacity style={styles.checkoutBtn}>
-        <Text style={styles.priceText}>$123,45</Text>
+        <Text style={styles.priceText}>
+          ${totalPrice.toFixed(2)}
+        </Text>
         <Feather name="chevron-right" size={24} color={Colors.white} />
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20, // Distância do fundo
+    bottom: 20,
     left: 16,
     right: 16,
     backgroundColor: Colors.white,
@@ -31,7 +86,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    // Sombra para dar o efeito de flutuação
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },

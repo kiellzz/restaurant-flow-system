@@ -3,33 +3,117 @@ import { CategoryItem } from '@/components/CategoryItem';
 import { FoodCard } from '@/components/FoodCard';
 import { Header } from '@/components/Header';
 import { Colors } from '@/constants/Colors';
+import { getCategoryImage } from '@/utils/imageHelper';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import React from 'react';
 import { FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const CATEGORIES_DATA = [
-  { id: '1', name: 'Fish', image: 'https://via.placeholder.com/70' },
-  { id: '2', name: 'Rice', image: 'https://via.placeholder.com/70' },
-  { id: '3', name: 'Noodle', image: 'https://via.placeholder.com/70' },
-  { id: '4', name: 'Burger', image: 'https://via.placeholder.com/70' },
+  { id: 'snack', name: 'Snacks' },
+  { id: 'main', name: 'Main Courses' },
+  { id: 'drink', name: 'Drinks' },
+  { id: 'dessert', name: 'Desserts' },
 ];
 
+type CartItem = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+};
+
+type Cart = Record<string, CartItem>;
+
 const DATA = [
-  { id: '1', name: 'Meat Burger', category: 'Snack', price: '$123,45', image: 'https://via.placeholder.com/150' },
-  { id: '2', name: 'Fish Stew', category: 'Main Course', price: '$123,45', image: 'https://via.placeholder.com/150' },
-  { id: '3', name: 'Fried Noodle', category: 'Main Course', price: '$123,45', image: 'https://via.placeholder.com/150' },
-  { id: '4', name: 'Juice Syrup', category: 'Drink', price: '$123,45', image: 'https://via.placeholder.com/150' },
+  // Snacks
+  { id: '1', name: 'Meat Burger', category: 'snack', price: 123.45 },
+
+  // main Courses
+  { id: '2', name: 'Fish Stew', category: 'main', price: 123.45 },
+  { id: '3', name: 'Fried Noodle', category: 'main', price: 123.45 },
+
+  // drinks
+  { id: '4', name: 'Juice Syrup', category: 'drink', price: 123.45 },
+  { id: '5', name: 'Soda', category: 'drink', price: 123.45 },
+  { id: '6', name: 'Lemonade', category: 'drink', price: 123.45 },
+  { id: '7', name: 'Milkshake', category: 'drink', price: 123.45 },
+
+  // desserts
+  { id: '8', name: 'Oreo Chessecake', category: 'dessert', price: 123.45 },
+  { id: '9', name: 'Açaí', category: 'dessert', price: 123.45 },
+  { id: '10', name: 'Brigadeiro', category: 'dessert', price: 123.45 },
+  { id: '11', name: 'Brownie', category: 'dessert', price: 123.45 },
 ];
 
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
-
-  // BottomBar: 80 altura + 20 bottom offset + 16 folga
   const bottomPadding = tabBarHeight + 80 + 20 + 16;
+
+  const [cart, setCart] = React.useState<Cart>({});
+  const [selectedCategory, setSelectedCategory] = React.useState<string>('snack');
+
+  const addItem = (item: { id: string; name: string; price: number }) => {
+    setCart(prev => {
+      const existing = prev[item.id];
+
+      if (existing) {
+        return {
+          ...prev,
+          [item.id]: {
+            ...existing,
+            quantity: existing.quantity + 1,
+          },
+        };
+      }
+
+      return {
+        ...prev,
+        [item.id]: {
+          ...item,
+          quantity: 1,
+        },
+      };
+    });
+  };
+
+  const removeItem = (id: string) => {
+    setCart(prev => {
+      const existing = prev[id];
+
+      if (!existing) return prev;
+
+      if (existing.quantity === 1) {
+        const newCart = { ...prev };
+        delete newCart[id];
+        return newCart;
+      }
+
+      return {
+        ...prev,
+        [id]: {
+          ...existing,
+          quantity: existing.quantity - 1,
+        },
+      };
+    });
+  };
+
+  const totalItems = Object.values(cart).reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
+
+  const totalPrice = Object.values(cart).reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
+  const filteredData = DATA.filter(item => item.category === selectedCategory);
 
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={DATA}
+        data={filteredData}
         keyExtractor={item => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
@@ -50,23 +134,38 @@ export default function HomeScreen() {
               keyExtractor={item => item.id}
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
-                <CategoryItem label={item.name} iconUri={item.image} />
+                <CategoryItem
+                  label={item.name}
+                  iconSource={getCategoryImage(item.id)}
+                  isSelected={selectedCategory === item.id}
+                  onPress={() => setSelectedCategory(item.id)}
+                />
               )}
               contentContainerStyle={styles.categoriesList}
             />
           </View>
         )}
-        renderItem={({ item }) => (
-          <FoodCard
-            name={item.name}
-            category={item.category}
-            price={item.price}
-          />
-        )}
+        renderItem={({ item }) => {
+          const quantity = cart[item.id]?.quantity || 0;
+
+          return (
+            <FoodCard
+              name={item.name}
+              category={item.category}
+              price={item.price}
+              quantity={quantity}
+              onAdd={() => addItem(item)}
+              onRemove={() => removeItem(item.id)}
+            />
+          );
+        }}
         contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
       />
 
-      <BottomBar />
+      <BottomBar
+        totalItems={totalItems}
+        totalPrice={totalPrice}
+      />
     </SafeAreaView>
   );
 }

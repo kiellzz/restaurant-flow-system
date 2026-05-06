@@ -1,15 +1,45 @@
-// utils/imageHelper.ts
+const foodImages: Record<string, any> = {
+  meatburger: require('../assets/images/foods/meatburger.webp'),
+  fishstew: require('../assets/images/foods/fishstew.webp'),
+  friednoodle: require('../assets/images/foods/friednoodle.webp'),
+  juicesyrup: require('../assets/images/foods/juicesyrup.webp'),
 
-export const foodImages: { [key: string]: any } = {
-  'meat burger': require('@/assets/images/foods/meat-burger.webp'),
-  'fish stew': require('@/assets/images/foods/fish-stew.webp'),
-  'fried noodle': require('@/assets/images/foods/fried-noodle.webp'),
-  'juice syrup': require('@/assets/images/foods/juice-syrup.webp'),
-  // Um placeholder caso você esqueça de adicionar alguma imagem
-  'default': require('@/assets/images/foods/placeholder.webp'), 
+  barbecue: require('../assets/images/foods/barbecue.webp'),
+  fries: require('../assets/images/foods/fries.webp'),
+
+  acai: require('../assets/images/foods/açaí.webp'),
+  brigadeiro: require('../assets/images/foods/brigadeiro.webp'),
+  brownie: require('../assets/images/foods/brownie.webp'),
+  lemonade: require('../assets/images/foods/lemonade.webp'),
+  milkshake: require('../assets/images/foods/milkshake.webp'),
+
+  oreochessecake: require('../assets/images/foods/oreochessecake.webp'),
+
+  soda: require('../assets/images/foods/soda.webp'),
+  water: require('../assets/images/foods/water.webp'),
 };
 
-export const getFoodImage = (name: string) => {
-  const key = name.toLowerCase().trim();
-  return foodImages[key] || foodImages['default'];
+const categoryImages: Record<string, any> = {
+  snack: require('../assets/images/categories/snacks.webp'),
+  main: require('../assets/images/categories/maincourses.webp'),
+  drink: require('../assets/images/categories/drinks.webp'),
+  dessert: require('../assets/images/categories/desserts.webp'),
 };
+
+export function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+export function getFoodImage(name: string) {
+  const key = normalizeName(name);
+  return foodImages[key];
+}
+
+export function getCategoryImage(name: string) {
+  const key = normalizeName(name);
+  return categoryImages[key];
+}
