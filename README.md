@@ -1,85 +1,136 @@
-# 🍽️ Restaurant Flow System
+# Restaurant Flow System
 
-> A real-time restaurant order management system built to simulate a modern digital restaurant workflow.
+Sistema em desenvolvimento para simular um fluxo digital de restaurante, com experiencia mobile para o cliente e painel web administrativo para a operacao.
 
-🚧 **Project status: In development**
+> Status: em desenvolvimento. A versao atual usa dados locais/mockados e nao processa pagamentos reais.
 
----
+## Visao Geral
 
-## 🧠 Overview
+O Restaurant Flow System nasceu como um app mobile-first para simular a jornada de pedido em um restaurante: o cliente acessa o cardapio, filtra itens, monta o carrinho e finaliza o pedido em um checkout demonstrativo.
 
-Restaurant Flow System is a mobile-first application that simulates a real restaurant ordering experience.
+A estrutura atual tambem inclui um dashboard administrativo web para acompanhar pedidos mockados e gerenciar itens do cardapio localmente.
 
-Customers can browse a menu, place orders, and track their status in real time as the kitchen processes them.
+## Estrutura do Projeto
 
----
+```text
+restaurant-system/
+|-- cliente/      # App mobile Expo/React Native
+`-- dashboard/    # Painel administrativo React/Vite
+```
 
-## 📱 Current Scope
+## Funcionalidades Atuais
 
-This initial version is focused on the **mobile experience only**, built with:
+### Cliente Mobile
 
-- 📱 React Native (Expo)
-- ⚡ TypeScript
+- Login e cadastro simulados.
+- Credenciais de teste com preenchimento automatico.
+- Botao de autenticacao com Google preparado para integracao futura.
+- Cardapio com categorias, busca por texto e filtros.
+- Ordenacao por popularidade ou preco.
+- Carrinho global com controle de quantidade, subtotal e total.
+- Tela de carrinho vazio e retorno ao cardapio.
+- Checkout simulado com PIX e cartao.
+- Copia de codigo PIX demonstrativo.
+- Tema visual escuro com imagens locais dos produtos.
 
-The system will evolve into a full ecosystem in future iterations.
+### Dashboard Administrativo
 
----
+- Login administrativo simulado.
+- Fila de pedidos mockados.
+- Avanco de status dos pedidos: novo, em preparo e pronto.
+- Lista de itens do cardapio.
+- Criacao, edicao e remocao local de itens.
+- Cadastro de preco, categoria, descricao, imagem e desconto.
 
-## ⚙️ Tech Stack
+## Tecnologias
 
-![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![Expo](https://img.shields.io/badge/Expo-000020?style=for-the-badge&logo=expo&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+### Cliente
 
----
+- React Native
+- Expo
+- Expo Router
+- TypeScript
+- React Context API
+- React Native SVG
 
-## 🔄 Core Flow
+### Dashboard
 
-1. User opens the menu  
-2. Adds items to cart  
-3. Places an order  
-4. Order is created and tracked  
-5. Status updates in real time:
-   - `pending`
-   - `preparing`
-   - `done`
+- React
+- Vite
+- TypeScript
+- React Router DOM
+- Lucide React
 
----
+## Como Rodar
 
-## 📦 Project Status
+### Cliente Mobile
 
-🚧 Active development (Mobile MVP)
+```bash
+cd cliente
+npm install
+npm run start
+```
 
-- [x] Project architecture defined  
-- [ ] Menu system  
-- [ ] Cart system  
-- [ ] Order creation flow  
-- [ ] State management  
-- [ ] UI/UX refinement  
+Depois, use o Expo para abrir no Android, iOS ou Web.
 
----
+Comandos uteis:
 
-## 🎯 Goal
+```bash
+npm run android
+npm run ios
+npm run web
+npm run lint
+```
 
-This project is designed to practice and demonstrate:
+### Dashboard Web
 
-- React Native architecture
-- Clean TypeScript design
-- Mobile product thinking
-- Real-world application flow design
+```bash
+cd dashboard
+npm install
+npm run dev
+```
 
----
+Para gerar build de producao:
 
-## 🚀 Future Expansion
+```bash
+npm run build
+```
 
-- Kitchen dashboard (web)
-- Backend integration
-- Real-time multi-device sync
-- Full restaurant system simulation
+## Credenciais de Teste
 
----
+### Cliente
 
-## 👨‍💻 Author
+```text
+E-mail: email@email.com
+Senha: 123456
+```
+
+### Admin
+
+```text
+E-mail: admin@restaurante.com
+Senha: admin123
+```
+
+## Observacoes Importantes
+
+- Autenticacao, pedidos, cardapio e pagamentos ainda sao simulados.
+- O checkout nao envia dados reais e nao processa pagamentos reais.
+- O dashboard usa estado local no navegador durante a sessao.
+- Ainda nao ha backend, banco de dados ou sincronizacao real entre cliente e admin.
+
+## Roadmap
+
+- Integrar backend e banco de dados.
+- Sincronizar pedidos entre app mobile e dashboard.
+- Persistir usuarios, cardapio e carrinho.
+- Adicionar acompanhamento real de status do pedido.
+- Implementar autenticacao real.
+- Integrar pagamento real.
+- Criar testes automatizados.
+- Refinar responsividade e acessibilidade.
+
+## Autor
 
 **Ezequiel Borges**
 
