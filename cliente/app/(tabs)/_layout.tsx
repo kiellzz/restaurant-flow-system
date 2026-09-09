@@ -7,10 +7,14 @@ import React from 'react';
 import { Platform } from 'react-native';
 
 export default function TabLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, tableNumber } = useAuth();
 
   if (!isAuthenticated) {
     return <Redirect href="/auth" />;
+  }
+
+  if (!tableNumber) {
+    return <Redirect href="/mesa" />;
   }
 
   return (

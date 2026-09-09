@@ -27,8 +27,6 @@ export const DEFAULT_MENU_FILTERS: MenuFilters = {
   sort: 'popular',
 };
 
-type PercentValue = `${number}%`;
-
 type FilterModalProps = {
   filters: MenuFilters;
   visible: boolean;
@@ -45,6 +43,7 @@ const categories: { id: MenuCategoryFilter; label: string }[] = [
 ];
 
 const priceRanges: { id: PriceRangeFilter; label: string }[] = [
+  { id: 'all', label: 'Qualquer preço' },
   { id: 'under15', label: 'Até R$ 15' },
   { id: '15to30', label: 'R$ 15 - R$ 30' },
   { id: '30to50', label: 'R$ 30 - R$ 50' },
@@ -61,17 +60,6 @@ const sortOptions: {
   { id: 'priceDesc', icon: 'arrow-up-outline', label: 'Maior preço' },
   { id: 'newest', icon: 'sparkles-outline', label: 'Novidades' },
 ];
-
-const priceTrackByRange: Record<
-  PriceRangeFilter,
-  { end: PercentValue; right: PercentValue; start: PercentValue }
-> = {
-  all: { start: '0%', end: '100%', right: '0%' },
-  under15: { start: '0%', end: '19%', right: '81%' },
-  '15to30': { start: '19%', end: '38%', right: '62%' },
-  '30to50': { start: '38%', end: '63%', right: '37%' },
-  above50: { start: '63%', end: '100%', right: '0%' },
-};
 
 export function hasFunctionalFilters(filters: MenuFilters) {
   return Boolean(
@@ -96,8 +84,6 @@ export function FilterModal({
       setDraftFilters(filters);
     }
   }, [filters, visible]);
-
-  const priceTrack = priceTrackByRange[draftFilters.priceRange];
 
   function handleCategoryPress(category: MenuCategoryFilter) {
     setDraftFilters(prev => ({
@@ -139,6 +125,7 @@ export function FilterModal({
 
             <TouchableOpacity
               accessibilityLabel="Fechar filtros"
+              accessibilityRole="button"
               activeOpacity={0.8}
               onPress={onClose}
               style={styles.closeButton}
@@ -161,11 +148,13 @@ export function FilterModal({
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
+                      aria-pressed={selected}
                       activeOpacity={0.85}
                       key={category.id}
                       onPress={() => handleCategoryPress(category.id)}
                       style={[styles.chip, selected && styles.chipActive]}
                     >
+                      {selected && <Feather name="check" size={13} color="#F0F0F3" />}
                       <Text style={[styles.chipText, selected && styles.chipTextActive]}>
                         {category.label}
                       </Text>
@@ -177,20 +166,6 @@ export function FilterModal({
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Faixa de preço</Text>
-              <View style={styles.priceTrack}>
-                <View
-                  style={[
-                    styles.priceProgress,
-                    { left: priceTrack.start, right: priceTrack.right },
-                  ]}
-                />
-                <View style={[styles.priceKnob, { left: priceTrack.start }]} />
-                <View style={[styles.priceKnob, { left: priceTrack.end }]} />
-              </View>
-              <View style={styles.priceLabels}>
-                <Text style={styles.priceLabel}>R$ 0</Text>
-                <Text style={styles.priceLabel}>R$ 80+</Text>
-              </View>
               <View style={styles.chipGrid}>
                 {priceRanges.map(range => {
                   const selected = draftFilters.priceRange === range.id;
@@ -199,11 +174,13 @@ export function FilterModal({
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
+                      aria-pressed={selected}
                       activeOpacity={0.85}
                       key={range.id}
                       onPress={() => handlePricePress(range.id)}
                       style={[styles.chip, selected && styles.chipActive]}
                     >
+                      {selected && <Feather name="check" size={13} color="#F0F0F3" />}
                       <Text style={[styles.chipText, selected && styles.chipTextActive]}>
                         {range.label}
                       </Text>
@@ -222,7 +199,8 @@ export function FilterModal({
                   return (
                     <TouchableOpacity
                       accessibilityRole="radio"
-                      accessibilityState={{ selected }}
+                      accessibilityState={{ checked: selected }}
+                      aria-checked={selected}
                       activeOpacity={0.85}
                       key={option.id}
                       onPress={() => setDraftFilters(prev => ({ ...prev, sort: option.id }))}
@@ -232,10 +210,10 @@ export function FilterModal({
                         <Ionicons
                           name={option.icon}
                           size={18}
-                          color={selected ? Colors.cardOrange : Colors.textGray}
+                          color={selected ? '#F0F0F3' : '#92929D'}
                         />
                       </View>
-                      <Text style={styles.optionText}>{option.label}</Text>
+                      <Text style={[styles.optionText, selected && styles.optionTextActive]}>{option.label}</Text>
                       <View style={[styles.radio, selected && styles.radioActive]}>
                         {selected && <View style={styles.radioDot} />}
                       </View>
@@ -245,25 +223,18 @@ export function FilterModal({
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Preferências</Text>
-              <View style={styles.preferenceRow}>
-                <View>
-                  <Text style={styles.preferenceTitle}>Disponível agora</Text>
-                  <Text style={styles.preferenceDescription}>Mostrar itens prontos para pedido</Text>
-                </View>
-                <View style={styles.switchTrack}>
-                  <View style={styles.switchThumb} />
-                </View>
-              </View>
+            <View style={styles.availabilityNote}>
+              <Feather name="check-circle" size={15} color="#9CB9A8" />
+              <Text style={styles.availabilityText}>O cardápio mostra apenas itens disponíveis para pedir.</Text>
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity activeOpacity={0.8} onPress={handleClear} style={styles.secondaryButton}>
+            <TouchableOpacity accessibilityRole="button" activeOpacity={0.8} onPress={handleClear} style={styles.secondaryButton}>
               <Text style={styles.secondaryButtonText}>Limpar</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              accessibilityRole="button"
               activeOpacity={0.9}
               onPress={() => onApply(draftFilters)}
               style={styles.primaryButton}
@@ -287,7 +258,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.64)',
   },
   sheet: {
-    backgroundColor: '#1D1D1D',
+    backgroundColor: '#19191C',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 480,
+    borderColor: '#303034',
+    borderWidth: 1,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: '88%',
@@ -312,222 +288,181 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   eyebrow: {
-    color: Colors.cardOrange,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1.1,
+    color: '#9696A2',
+    fontSize: 10,
+    fontWeight: '500',
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   title: {
     color: Colors.white,
-    fontSize: 30,
-    fontWeight: '900',
-    marginTop: 2,
+    fontSize: 27,
+    fontWeight: '600',
+    letterSpacing: -0.5,
+    marginTop: 5,
   },
   closeButton: {
     alignItems: 'center',
-    backgroundColor: '#2B2B2B',
-    borderColor: '#3A3A3A',
-    borderRadius: 16,
+    backgroundColor: '#252529',
+    borderColor: '#343439',
+    borderRadius: 13,
     borderWidth: 1,
     height: 46,
     justifyContent: 'center',
     width: 46,
   },
   content: {
-    paddingBottom: 16,
-    paddingTop: 22,
+    paddingBottom: 20,
+    paddingTop: 8,
   },
   section: {
-    backgroundColor: '#242424',
-    borderColor: '#333',
-    borderRadius: 22,
-    borderWidth: 1,
-    marginBottom: 14,
-    padding: 16,
+    borderBottomColor: '#303034',
+    borderBottomWidth: 1,
+    paddingVertical: 20,
   },
   sectionTitle: {
-    color: Colors.white,
-    fontSize: 17,
-    fontWeight: '900',
+    color: '#E6E6EB',
+    fontSize: 14,
+    fontWeight: '600',
     marginBottom: 14,
   },
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   chip: {
-    backgroundColor: '#191919',
-    borderColor: '#343434',
-    borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+    backgroundColor: '#222225',
+    borderColor: '#36363C',
+    borderRadius: 11,
     borderWidth: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
   },
   chipActive: {
-    backgroundColor: Colors.cardOrange,
-    borderColor: Colors.cardOrange,
+    backgroundColor: '#C92525',
+    borderColor: '#DE4545',
   },
   chipText: {
-    color: Colors.textGray,
-    fontSize: 13,
-    fontWeight: '800',
+    color: '#B2B2BC',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   chipTextActive: {
-    color: '#000',
-  },
-  priceTrack: {
-    backgroundColor: '#3B3B3B',
-    borderRadius: 999,
-    height: 8,
-    marginHorizontal: 4,
-    marginTop: 2,
-    position: 'relative',
-  },
-  priceProgress: {
-    backgroundColor: Colors.cardOrange,
-    borderRadius: 999,
-    height: 8,
-    position: 'absolute',
-  },
-  priceKnob: {
-    backgroundColor: Colors.white,
-    borderColor: Colors.cardOrange,
-    borderRadius: 11,
-    borderWidth: 4,
-    height: 22,
-    marginLeft: -11,
-    position: 'absolute',
-    top: -7,
-    width: 22,
-  },
-  priceLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    marginTop: 12,
-  },
-  priceLabel: {
-    color: Colors.textGray,
-    fontSize: 12,
-    fontWeight: '800',
+    color: '#F0F0F3',
+    fontWeight: '600',
   },
   optionStack: {
-    gap: 10,
+    gap: 6,
   },
   optionRow: {
     alignItems: 'center',
-    backgroundColor: '#191919',
-    borderColor: '#343434',
-    borderRadius: 16,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: 12,
-    padding: 12,
+    gap: 10,
+    minHeight: 54,
+    padding: 10,
   },
   optionRowActive: {
-    backgroundColor: '#231F18',
-    borderColor: Colors.cardOrange,
+    backgroundColor: '#3A2023',
+    borderColor: '#C92525',
   },
   optionIcon: {
     alignItems: 'center',
-    backgroundColor: '#2E2E2E',
-    borderRadius: 12,
-    height: 36,
+    backgroundColor: '#252529',
+    borderRadius: 9,
+    height: 32,
     justifyContent: 'center',
-    width: 36,
+    width: 32,
   },
   optionIconActive: {
-    backgroundColor: '#332612',
+    backgroundColor: '#7A282D',
   },
   optionText: {
-    color: Colors.white,
+    color: '#B2B2BC',
     flex: 1,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  optionTextActive: {
+    color: '#F0F0F3',
+    fontWeight: '600',
   },
   radio: {
     alignItems: 'center',
     borderColor: '#555',
     borderRadius: 10,
-    borderWidth: 2,
+    borderWidth: 1.5,
     height: 20,
     justifyContent: 'center',
     width: 20,
   },
   radioActive: {
-    borderColor: Colors.cardOrange,
+    borderColor: '#F06464',
   },
   radioDot: {
-    backgroundColor: Colors.cardOrange,
+    backgroundColor: '#F06464',
     borderRadius: 5,
     height: 10,
     width: 10,
   },
-  preferenceRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  preferenceTitle: {
-    color: Colors.white,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  preferenceDescription: {
-    color: Colors.textGray,
-    fontSize: 12,
-    marginTop: 3,
-  },
-  switchTrack: {
-    alignItems: 'flex-end',
-    backgroundColor: Colors.cardOrange,
-    borderRadius: 999,
-    height: 32,
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    width: 56,
-  },
-  switchThumb: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    height: 24,
-    width: 24,
-  },
   footer: {
+    borderTopColor: '#303034',
+    borderTopWidth: 1,
     flexDirection: 'row',
     gap: 12,
     paddingBottom: 24,
-    paddingTop: 8,
+    paddingTop: 14,
   },
   secondaryButton: {
     alignItems: 'center',
-    backgroundColor: '#2B2B2B',
-    borderColor: '#3A3A3A',
-    borderRadius: 16,
+    backgroundColor: '#242428',
+    borderColor: '#3A3A42',
+    borderRadius: 12,
     borderWidth: 1,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 50,
+    padding: 10,
   },
   secondaryButtonText: {
-    color: Colors.white,
-    fontSize: 15,
-    fontWeight: '900',
+    color: '#C3C3CC',
+    fontSize: 13,
+    fontWeight: '500',
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: Colors.accentRed,
-    borderRadius: 16,
+    backgroundColor: '#C92525',
+    borderRadius: 12,
     flex: 1.35,
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 50,
+    padding: 10,
   },
   primaryButtonText: {
     color: Colors.white,
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  availabilityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingTop: 18,
+  },
+  availabilityText: {
+    flex: 1,
+    color: '#9696A2',
+    fontSize: 11,
+    lineHeight: 18,
   },
 });

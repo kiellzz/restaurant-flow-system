@@ -22,7 +22,7 @@ import {
 type AuthMode = 'login' | 'register';
 
 export default function AuthScreen() {
-  const { demoEmail, demoPassword, isAuthenticated, login, register } = useAuth();
+  const { demoEmail, demoPassword, isAuthenticated, login, register, tableNumber } = useAuth();
   const [mode, setMode] = useState<AuthMode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -44,7 +44,7 @@ export default function AuthScreen() {
   }, [email, mode, name, password]);
 
   if (isAuthenticated) {
-    return <Redirect href="/" />;
+    return <Redirect href={tableNumber ? '/' : '/mesa'} />;
   }
 
   const handleSubmit = () => {
@@ -58,7 +58,7 @@ export default function AuthScreen() {
         return;
       }
 
-      router.replace('/');
+      router.replace('/mesa');
       return;
     }
 
@@ -68,7 +68,7 @@ export default function AuthScreen() {
     }
 
     register(name, email, password);
-    router.replace('/');
+    router.replace('/mesa');
   };
 
   const switchMode = (nextMode: AuthMode) => {

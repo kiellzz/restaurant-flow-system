@@ -13,7 +13,9 @@ const foodImages: Record<string, any> = {
   batatafrita: require('../assets/images/foods/fries.webp'),
   coxinha: require('../assets/images/foods/coxinha.webp'),
   hotdog: require('../assets/images/foods/hotdog.webp'),
+  hotdogpng: require('../assets/images/foods/hotdog.webp'),
   frangoaparmegiana: require('../assets/images/foods/frangoparmegiana.webp'),
+  frangoparmegiana: require('../assets/images/foods/frangoparmegiana.webp'),
   feijoada: require('../assets/images/foods/feijoada.webp'),
 
   acai: require('../assets/images/foods/açaí.webp'),
@@ -38,6 +40,8 @@ const categoryImages: Record<string, any> = {
   dessert: require('../assets/images/categories/desserts.webp'),
 };
 
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
+
 export function normalizeName(name: string): string {
   return name
     .toLowerCase()
@@ -46,9 +50,31 @@ export function normalizeName(name: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
-export function getFoodImage(name: string) {
+function getRemoteImageSource(image?: string) {
+  if (!image) {
+    return null;
+  }
+
+  if (image.startsWith('http')) {
+    return { uri: image };
+  }
+
+  if (image.startsWith('/uploads/') && API_BASE_URL) {
+    return { uri: `${API_BASE_URL}${image}` };
+  }
+
+  return null;
+}
+
+export function getFoodImage(name: string, image?: string) {
+  const remoteImage = getRemoteImageSource(image);
+
+  if (remoteImage) {
+    return remoteImage;
+  }
+
   const key = normalizeName(name);
-  return foodImages[key];
+  return foodImages[key] ?? foodImages.meatburger;
 }
 
 export function getCategoryImage(name: string) {

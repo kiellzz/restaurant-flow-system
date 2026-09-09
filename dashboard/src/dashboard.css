@@ -1,0 +1,245 @@
+/* Operational dashboard: quiet surfaces, clear status and compact history. */
+.dashboard-shell {
+  --color-surface: #1c1c1e;
+  --color-surface-strong: #171719;
+  --color-border: #303033;
+  --color-muted: #a9a9b0;
+  --color-text: #f1f1f3;
+  padding: 28px 32px 64px;
+  background: #121214;
+  min-height: 100vh;
+}
+
+.dashboard-shell button:focus-visible,
+.dashboard-shell summary:focus-visible {
+  outline: 2px solid #efb25b;
+  outline-offset: 4px;
+}
+
+.dashboard-shell .admin-topbar {
+  max-width: 1260px;
+  background: #121214;
+  padding: 4px 0 23px;
+  border-color: #28282c;
+}
+
+.admin-brand { display: flex; align-items: center; gap: 12px; }
+.admin-brand-icon { display: grid; place-items: center; width: 44px; height: 44px; background: #30261b; border: 1px solid #584022; border-radius: 14px; color: #efb25b; }
+.dashboard-shell .admin-brand p { color: #eeeeef; font-weight: 650; font-size: 16px; margin-bottom: 4px; }
+.dashboard-shell .admin-brand strong { font-size: 12px; font-weight: 400; color: #94949d; }
+.dashboard-shell .ghost-button { background: #1b1b1e; border-color: #303033; border-radius: 10px; font-size: 12px; font-weight: 500; min-height: 40px; padding: 0 13px; color: #bcbcc3; }
+.dashboard-shell .ghost-button svg { width: 15px; }
+.dashboard-shell .reset-demo-button { background: transparent; border-color: transparent; color: #94949d; }
+.dashboard-shell .ghost-button:hover { background: #29292d; color: #eee; }
+
+.dashboard-shell .dashboard-layout { max-width: 1260px; grid-template-columns: 202px minmax(0, 1fr); gap: 36px; margin-top: 34px; }
+.dashboard-shell .admin-sidebar { background: transparent; border: 0; border-radius: 0; padding: 5px 0; top: 106px; }
+.dashboard-shell .sidebar-title { font-size: 10px; letter-spacing: 1.5px; font-weight: 600; color: #777781; margin: 0 12px 17px; }
+.dashboard-shell .sidebar-title svg { width: 14px; }
+.dashboard-shell .section-nav { gap: 6px; }
+.dashboard-shell .section-link { font-size: 13px; font-weight: 500; border-radius: 10px; min-height: 46px; padding: 0 12px; color: #9d9da6; }
+.dashboard-shell .section-link.is-active { background: #2c241b; color: #f0b566; box-shadow: inset 0 0 0 1px #493622; }
+.sidebar-count { margin-left: auto; background: #46331d; padding: 3px 7px; border-radius: 6px; font-size: 11px; }
+.sidebar-team { display: grid; gap: 7px; border-top: 1px solid #29292d; margin-top: 28px; padding: 20px 12px; }
+.sidebar-team span { font-size: 10px; color: #777781; }
+.sidebar-team strong { color: #b7b7c0; font-size: 11px; font-weight: 500; line-height: 1.5; }
+.dashboard-shell .dashboard-content { background: transparent; border: 0; padding: 0; border-radius: 0; }
+.dashboard-shell .section-header { gap: 24px; margin-bottom: 26px; align-items: center; }
+.dashboard-shell .section-header .login-kicker { color: #898992; font-size: 10px; font-weight: 500; letter-spacing: 1.6px; margin: 0 0 10px; }
+.dashboard-shell .section-header h1 { font-size: clamp(23px, 2.4vw, 30px); font-weight: 650; letter-spacing: -0.9px; line-height: 1.2; }
+.orders-intro { margin: 9px 0 0; font-size: 13px; color: #96969f; line-height: 1.6; }
+.dashboard-shell .add-item-button { background: #edab4e; color: #241b0f; border-radius: 10px; min-height: 43px; font-size: 12px; font-weight: 650; gap: 7px; white-space: nowrap; }
+.dashboard-shell .add-item-button:hover { background: #f4bb6c; }
+
+.operations-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px; }
+.operations-overview > div { background: #1b1b1e; border: 1px solid #2e2e32; border-radius: 13px; padding: 16px 17px 14px; }
+.operations-overview dt { display: flex; gap: 7px; align-items: center; color: #a4a4ad; font-size: 11px; line-height: 1.5; }
+.operations-overview dt svg { flex-shrink: 0; color: #9298b1; }
+.operations-overview dd { margin: 10px 0 0; color: #ededf0; font-size: 28px; font-weight: 500; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+.operations-overview [data-status="em_preparo"] dt svg { color: #d3a163; }
+.operations-overview [data-status="pronto"] dt svg { color: #81b899; }
+.operations-overview [data-status="entregue"] dt svg { color: #a5a0b8; }
+.dashboard-shell .order-view-controls { border-bottom: 1px solid #2d2d32; gap: 24px; margin-bottom: 19px; }
+.dashboard-shell .order-view-button { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; font-size: 12px; font-weight: 500; color: #9999a3; gap: 9px; padding: 0 0 13px; min-height: 42px; margin-bottom: -1px; }
+.dashboard-shell .order-view-button.is-active { color: #efb25b; border-bottom-color: #efb25b; }
+.view-count { font-size: 10px; border-radius: 5px; background: #27272b; padding: 3px 6px; color: #a6a6af; }
+.is-active .view-count { background: #352a1b; color: #efb25b; }
+.issue-indicator { width: 5px; height: 5px; border-radius: 50%; background: #ee8d80; }
+.orders-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.orders-list-heading p { font-size: 12px; font-weight: 500; color: #cccbd1; margin: 0; }
+.orders-list-heading p span { color: #868690; font-weight: 400; }
+.orders-list-heading > span { font-size: 10px; color: #81818b; }
+
+.dashboard-shell .orders-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 365px), 1fr)); align-items: start; gap: 16px; }
+.dashboard-shell .order-card { border-radius: 16px; padding: 21px; background: #1c1c1f; border-color: #303034; }
+.dashboard-shell .order-card-issue { border-color: #765047; }
+.order-customer-heading { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.order-customer-heading > div:last-child { min-width: 0; }
+.table-marker { width: 51px; min-width: 51px; min-height: 62px; background: #27272b; border: 1px solid #36363b; border-radius: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.table-marker span { font-size: 8px; letter-spacing: 1.4px; color: #9797a1; }
+.table-marker strong { font-size: 23px; font-weight: 500; color: #e4e4e9; font-variant-numeric: tabular-nums; }
+.dashboard-shell .order-id { color: #9898a2; font-size: 10px; font-weight: 400; letter-spacing: 0.6px; margin-bottom: 5px; }
+.dashboard-shell .order-card h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.2px; line-height: 1.4; overflow-wrap: anywhere; }
+.dashboard-shell .order-time { margin-top: 5px; font-size: 10px; font-weight: 400; gap: 5px; color: #93939d; }
+.dashboard-shell .order-time svg { color: #7e7e89; }
+.dashboard-shell .status-badge { font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1.4; letter-spacing: 0.2px; padding: 7px 11px; border: 1px solid transparent; border-radius: 7px; white-space: nowrap; }
+.dashboard-shell .status-new { background: #222c3b; border-color: #34435b; color: #a9c3ec; }
+.dashboard-shell .status-preparing { background: #362c1e; border-color: #58452c; color: #e2b77b; }
+.dashboard-shell .status-ready { background: #21352b; border-color: #345441; color: #9ed1b1; }
+.dashboard-shell .status-delivered { background: #2b2931; border-color: #3f3b48; color: #bcb7cc; }
+.dashboard-shell .status-issue { background: #382623; border-color: #634039; color: #eba69b; }
+.dashboard-shell .order-items { margin: 20px 0; gap: 12px; }
+.dashboard-shell .order-items li { background: none; padding: 0; min-height: 24px; border-radius: 0; gap: 6px; }
+.dashboard-shell .order-item-main { gap: 10px; justify-content: flex-start; align-items: flex-start; font-size: 13px; font-weight: 400; line-height: 1.6; }
+.dashboard-shell .order-item-main strong { color: #babac3; background: #2a2a2f; border-radius: 5px; font-size: 10px; font-weight: 500; padding: 2px 6px; min-width: 27px; text-align: center; }
+.dashboard-shell .order-item-main > span { color: #d6d6de; overflow-wrap: anywhere; }
+.dashboard-shell .order-item-details { border-top: 0; padding: 0 0 0 37px; font-size: 11px; font-weight: 400; color: #9999a4; line-height: 1.6; }
+.dashboard-shell .order-footer { border-color: #303034; padding-top: 15px; flex-wrap: wrap; }
+.order-total-block { display: grid; gap: 4px; }
+.order-total-block span { color: #85858f; font-size: 10px; }
+.order-total-block strong { color: #e5e5ea; font-weight: 600; font-size: 18px; letter-spacing: -0.3px; }
+.dashboard-shell .compact-action { background: #c92525; border: 1px solid #df3636; color: #ffffff; font-size: 11px; font-weight: 500; border-radius: 9px; min-height: 40px; gap: 10px; padding: 0 13px; }
+.dashboard-shell .compact-action:hover { background: #ad1e1e; border-color: #c92525; }
+.dashboard-shell .ready-note { background: #26262b; border-color: #38383f; color: #adaeb9; font-size: 10px; font-weight: 400; min-height: 29px; border-radius: 7px; white-space: normal; }
+.dashboard-shell .delivery-issue-notice { background: #2b2220; color: #d7a99c; font-size: 12px; font-weight: 400; border-radius: 10px; line-height: 1.7; }
+.dashboard-shell .delivery-resolution-record { border-radius: 10px; font-size: 12px; }
+.delivery-resolution-record strong { display: flex; align-items: center; gap: 7px; font-weight: 500; }
+.dashboard-shell .delivery-resolution-record small { color: #94949f; font-size: 10px; line-height: 1.7; }
+.dashboard-shell .delivery-resolution-form .form-field { font-weight: 500; font-size: 12px; }
+.dashboard-shell .delivery-resolution-form .form-field textarea { font-size: 13px; font-weight: 400; line-height: 1.6; }
+.dashboard-shell .delivery-resolution-form .primary-button { background: #e5ab5b; color: #241b10; box-shadow: none; font-weight: 600; font-size: 12px; border-radius: 9px; }
+.dashboard-shell .delivery-resolution-form .secondary-button { font-size: 12px; font-weight: 500; border-radius: 9px; }
+.dashboard-shell .order-view-description { font-size: 11px; }
+.dashboard-shell .orders-empty { background: #19191c; border: 1px dashed #35353a; flex-direction: column; gap: 12px; padding: 40px 20px; min-height: 210px; border-radius: 15px; }
+.orders-empty svg { color: #849e8d; }
+.orders-empty strong { color: #d3d3da; font-size: 15px; font-weight: 500; }
+.orders-empty span { color: #92929d; font-size: 12px; font-weight: 400; }
+
+.dashboard-shell .orders-history { grid-template-columns: 1fr; gap: 10px; }
+.history-order { background: #19191c; border: 1px solid #2d2d33; border-radius: 12px; overflow: hidden; }
+.history-order > summary { list-style: none; display: flex; align-items: center; gap: 15px; padding: 18px 20px; cursor: pointer; }
+.history-order > summary::-webkit-details-marker { display: none; }
+.history-order > summary:hover { background: #202024; }
+.history-check { display: flex; color: #7ca18a; }
+.history-customer { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.history-customer strong { color: #c4c4cc; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.history-customer > span { font-size: 10px; color: #868691; line-height: 1.6; }
+.history-total { font-size: 13px; color: #bdbdc6; white-space: nowrap; }
+.history-chevron { color: #777782; flex-shrink: 0; transition: transform 160ms; }
+.history-order[open] .history-chevron { transform: rotate(180deg); }
+.history-order-body { padding: 0 20px 3px; border-top: 1px solid #29292e; }
+.history-order-body > .ready-note { margin-top: 15px; }
+
+/* Menu typography follows the same hierarchy as the order queue. */
+.dashboard-shell .menu-table {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.dashboard-shell .menu-table-head {
+  color: #a6a6b0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  line-height: 1.5;
+}
+
+.dashboard-shell .menu-item-cell strong {
+  display: block;
+  color: #ededf2;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.15px;
+  line-height: 1.4;
+}
+
+.dashboard-shell .menu-item-cell p {
+  color: #a3a3af;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+
+.dashboard-shell .menu-table-row > span[role="cell"] {
+  color: #bdbdc8;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.dashboard-shell .price-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-shell .price-cell strong {
+  color: #ededf2;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.15px;
+}
+
+.dashboard-shell .old-price {
+  color: #94949f;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.dashboard-shell .menu-table .item-type-pill,
+.dashboard-shell .menu-table .discount-pill {
+  justify-self: start;
+  min-height: 29px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.dashboard-shell .menu-table .discount-pill.is-active {
+  color: #efb25b;
+}
+
+.dashboard-shell .menu-table .availability-pill {
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.1px;
+}
+
+@media (max-width: 1050px) {
+  .dashboard-shell .dashboard-layout { grid-template-columns: 174px minmax(0, 1fr); gap: 25px; }
+  .operations-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-shell .section-header { flex-wrap: wrap; gap: 16px; }
+}
+
+@media (max-width: 760px) {
+  .dashboard-shell { padding: 20px 18px 40px; }
+  .dashboard-shell .dashboard-layout { grid-template-columns: 1fr; margin-top: 19px; gap: 25px; }
+  .dashboard-shell .admin-sidebar { position: static; padding: 0; }
+  .dashboard-shell .sidebar-title, .sidebar-team { display: none; }
+  .dashboard-shell .section-nav { display: flex; gap: 10px; }
+  .dashboard-shell .section-link { width: auto; flex: 1; }
+  .dashboard-shell .admin-topbar { position: static; flex-direction: row; align-items: center; gap: 12px; flex-wrap: wrap; padding-bottom: 18px; }
+  .dashboard-shell .topbar-actions { width: auto; gap: 5px; }
+  .dashboard-shell .ghost-button { width: auto; min-height: 36px; padding: 0 10px; font-size: 11px; }
+  .dashboard-shell .section-header { align-items: flex-start; }
+  .dashboard-shell .section-actions { width: auto; }
+  .dashboard-shell .order-view-controls { gap: 19px; }
+  .dashboard-shell .order-view-button { font-size: 11px; gap: 6px; }
+  .orders-list-heading > span { display: none; }
+  .dashboard-shell .order-card { padding: 17px; }
+  .dashboard-shell .order-card-header { flex-wrap: wrap; gap: 12px; }
+  .dashboard-shell .order-card h2 { font-size: 15px; }
+  .operations-overview { gap: 9px; margin-bottom: 22px; }
+  .operations-overview > div { padding: 13px; }
+  .operations-overview dt { font-size: 10px; }
+  .operations-overview dd { font-size: 25px; }
+  .history-order > summary { padding: 15px 13px; gap: 10px; flex-wrap: wrap; }
+  .history-check { display: none; }
+  .history-order-body { padding-inline: 13px; }
+}

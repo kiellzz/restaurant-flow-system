@@ -6,6 +6,7 @@ import { AdminAuthProvider, useAdminAuth } from './contexts/AdminAuthContext';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import './styles.css';
+import './dashboard.css';
 
 function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAdminAuth();

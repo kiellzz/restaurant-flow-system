@@ -7,9 +7,12 @@ type AuthContextValue = {
   demoEmail: string;
   demoPassword: string;
   isAuthenticated: boolean;
+  lastTableChangeAt: number | null;
   login: (email: string, password: string) => boolean;
   register: (name: string, email: string, password: string) => void;
   logout: () => void;
+  setSessionTableNumber: (tableNumber: number, options?: { startCooldown?: boolean }) => void;
+  tableNumber: number | null;
   userName: string;
 };
 
@@ -17,12 +20,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [lastTableChangeAt, setLastTableChangeAt] = useState<number | null>(null);
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
   const [userName, setUserName] = useState('Visitante');
 
   const value = useMemo<AuthContextValue>(() => ({
     demoEmail: DEMO_EMAIL,
     demoPassword: DEMO_PASSWORD,
     isAuthenticated,
+    lastTableChangeAt,
     login: (email, password) => {
       const isDemoUser = email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD;
 
@@ -39,10 +45,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     logout: () => {
       setUserName('Visitante');
+      setTableNumber(null);
+      setLastTableChangeAt(null);
       setIsAuthenticated(false);
     },
+    setSessionTableNumber: (nextTableNumber, options) => {
+      setTableNumber(Math.min(99, Math.max(1, Math.round(nextTableNumber))));
+
+      if (options?.startCooldown) {
+        setLastTableChangeAt(Date.now());
+      }
+    },
+    tableNumber,
     userName,
-  }), [isAuthenticated, userName]);
+  }), [isAuthenticated, lastTableChangeAt, tableNumber, userName]);
 
   return (
     <AuthContext.Provider value={value}>

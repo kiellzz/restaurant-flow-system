@@ -1,13 +1,13 @@
 import { Colors } from '@/constants/Colors';
 import { getFoodImage } from '@/utils/imageHelper';
 import { Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface FoodCardProps {
   name: string;
   category: string;
+  image?: string;
   price: number;
   quantity: number;
   onAdd: () => void;
@@ -17,144 +17,187 @@ interface FoodCardProps {
 export function FoodCard({
   name,
   category,
+  image,
   price,
   quantity,
   onAdd,
   onRemove,
 }: FoodCardProps) {
-  const foodSource = getFoodImage(name);
+  const foodSource = getFoodImage(name, image);
   const formattedPrice = price.toFixed(2).replace('.', ',');
 
   return (
-    <View style={styles.shadowContainer}>
-      <LinearGradient
-        colors={[Colors.cardOrange, '#E67E22']}
-        style={styles.card}
-      >
+    <View style={[styles.card, quantity > 0 && styles.selectedCard]}>
         <View style={styles.imageWrapper}>
-          <Image source={foodSource} style={styles.image} resizeMode="cover" />
+          <Image source={foodSource} style={styles.image} resizeMode="cover" accessible={false} />
         </View>
 
         <View style={styles.content}>
           <Text style={styles.category} numberOfLines={1}>
             {category}
           </Text>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={2}>
             {name}
           </Text>
 
-          <LinearGradient
-            colors={['rgba(255,255,255,0.95)', 'rgba(255,240,225,1)']}
-            style={styles.footer}
-          >
+          <View style={styles.footer}>
             <Text style={styles.price}>
               <Text style={styles.currencySign}>R$ </Text>
               {formattedPrice}
             </Text>
 
-            <View style={styles.actions}>
-              {quantity > 0 && (
-                <TouchableOpacity onPress={onRemove} style={styles.iconButton}>
-                  <Feather name="minus-circle" size={22} color={Colors.accentRed} />
+            {quantity > 0 ? (
+              <View style={styles.quantityControl}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remover uma unidade de ${name}`}
+                  activeOpacity={0.75}
+                  onPress={onRemove}
+                  style={styles.removeButton}
+                >
+                  <Feather name={quantity === 1 ? 'trash-2' : 'minus'} size={17} color="#D8A8A8" />
                 </TouchableOpacity>
-              )}
 
-              {quantity > 0 && (
-                <Text style={styles.quantity}>{quantity}</Text>
-              )}
+                <Text style={styles.quantity} accessibilityLabel={`${quantity} unidades de ${name} no carrinho`}>
+                  {quantity}
+                </Text>
 
-              <TouchableOpacity onPress={onAdd} style={styles.iconButton}>
-                <Feather name="plus-circle" size={24} color={Colors.accentRed} />
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`Adicionar mais ${name}`}
+                  activeOpacity={0.8}
+                  onPress={onAdd}
+                  style={styles.increaseButton}
+                >
+                  <Feather name="plus" size={20} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`Adicionar ${name} ao pedido`}
+                activeOpacity={0.8}
+                onPress={onAdd}
+                style={styles.addButton}
+              >
+                <Feather name="plus" size={17} color={Colors.white} />
+                <Text style={styles.addButtonText}>Adicionar</Text>
               </TouchableOpacity>
-            </View>
-          </LinearGradient>
+            )}
+          </View>
         </View>
-      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shadowContainer: {
-    width: '48%',
-    marginBottom: 20,
-    borderRadius: 24,
-    backgroundColor: 'transparent',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-  },
   card: {
-    borderRadius: 24,
+    width: '48%',
+    marginBottom: 16,
+    borderRadius: 19,
+    backgroundColor: '#222224',
     overflow: 'hidden',
-    width: '100%',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#38383C',
+  },
+  selectedCard: {
+    borderColor: '#765632',
   },
   imageWrapper: {
     width: '100%',
-    aspectRatio: 1.1,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.3)',
+    aspectRatio: 1.15,
+    backgroundColor: '#2D2D30',
   },
   image: {
     width: '100%',
     height: '100%',
   },
   content: {
-    padding: 14,
-    paddingTop: 12,
+    flex: 1,
+    padding: 12,
+    paddingTop: 13,
   },
   category: {
     fontSize: 10,
-    color: '#000',
+    color: '#B5A48E',
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    fontWeight: '700',
-    marginBottom: 4,
-    opacity: 0.6,
+    letterSpacing: 0.8,
+    lineHeight: 14,
+    fontWeight: '500',
+    marginBottom: 5,
   },
   title: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#000',
-    marginBottom: 14,
-    letterSpacing: -0.3,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F3F3F5',
+    lineHeight: 22,
+    minHeight: 44,
+    marginBottom: 10,
+    letterSpacing: -0.2,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#FFF',
+    marginTop: 'auto',
+    gap: 12,
   },
   currencySign: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#ACACB6',
   },
   price: {
-    fontWeight: '900',
-    fontSize: 16,
-    color: '#000',
+    fontWeight: '600',
+    fontSize: 18,
+    lineHeight: 24,
+    color: '#F3F3F5',
+    letterSpacing: -0.3,
+    fontVariant: ['tabular-nums'],
   },
-  actions: {
+  quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 1,
+    justifyContent: 'space-between',
+    backgroundColor: '#19191B',
+    borderRadius: 11,
+    minHeight: 44,
   },
-  iconButton: {
-    padding: 2,
+  removeButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    minHeight: 44,
+    borderRadius: 11,
+  },
+  increaseButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#C92525',
+    borderRadius: 11,
+    width: 44,
+    minHeight: 44,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#C92525',
+    borderRadius: 11,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  addButtonText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   quantity: {
-    fontWeight: '800',
-    fontSize: 15,
-    color: '#000',
+    flex: 1,
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#E3E3E9',
     textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
 });

@@ -1,6 +1,7 @@
 import PixIcon from '@/assets/images/pix.svg';
 import QrCodeExample from '@/assets/images/qrcode_example.webp';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/contexts/AuthContext';
 import { Feather } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import React, { useState } from 'react';
@@ -21,7 +22,7 @@ type CheckoutStep = 'selecting' | 'processing' | 'success';
 
 type CheckoutModalProps = {
   onClose: () => void;
-  onConfirm: (paymentMethod: PaymentMethod) => void;
+  onConfirm: (paymentMethod: PaymentMethod) => Promise<void> | void;
   totalPrice: number;
   visible: boolean;
 };
@@ -84,9 +85,12 @@ export function CheckoutModal({
   totalPrice,
   visible,
 }: CheckoutModalProps) {
+  const { tableNumber } = useAuth();
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | null>(null);
   const [step, setStep] = useState<CheckoutStep>('selecting');
   const [cardForm, setCardForm] = useState(EMPTY_CARD_FORM);
+  const [isFinishingOrder, setIsFinishingOrder] = useState(false);
+  const finishingOrderRef = React.useRef(false);
   const [isPixCodeCopied, setIsPixCodeCopied] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const simulationTimers = React.useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -101,6 +105,8 @@ export function CheckoutModal({
     setSelectedPayment(null);
     setStep('selecting');
     setCardForm(EMPTY_CARD_FORM);
+    setIsFinishingOrder(false);
+    finishingOrderRef.current = false;
     setIsPixCodeCopied(false);
     setIsProcessingPayment(false);
   }, [clearSimulationTimers]);
@@ -123,6 +129,7 @@ export function CheckoutModal({
   }, [resetFlow, visible]);
 
   const amountLabel = `R$ ${formatPrice(totalPrice)}`;
+  const tableLabel = tableNumber ? `Mesa ${String(tableNumber).padStart(2, '0')}` : 'mesa selecionada';
 
   const handleConfirm = () => {
     if (!selectedPayment) return;
@@ -156,9 +163,30 @@ export function CheckoutModal({
     onClose();
   };
 
-  const handleFinish = () => {
-    if (selectedPayment) {
-      onConfirm(selectedPayment);
+  const handleFinish = async () => {
+    if (!selectedPayment || finishingOrderRef.current) {
+      return;
+    }
+
+    finishingOrderRef.current = true;
+    setIsFinishingOrder(true);
+
+    try {
+      await onConfirm(selectedPayment);
+      handleClose();
+    } catch (error) {
+      console.error(error);
+      finishingOrderRef.current = false;
+      setIsFinishingOrder(false);
+    }
+  };
+
+  const handleDismiss = () => {
+    if (finishingOrderRef.current) return;
+
+    if (step === 'success') {
+      void handleFinish();
+      return;
     }
 
     handleClose();
@@ -314,11 +342,12 @@ export function CheckoutModal({
         <TouchableOpacity
           accessibilityRole="button"
           activeOpacity={0.9}
+          disabled={isFinishingOrder}
           onPress={handleFinish}
           style={styles.doneButton}
         >
-          <Text style={styles.doneButtonText}>Voltar ao cardápio</Text>
-          <Feather name="arrow-right" size={20} color={Colors.white} />
+          <Text style={styles.doneButtonText}>{isFinishingOrder ? 'Salvando pedido...' : 'Voltar ao cardápio'}</Text>
+          {isFinishingOrder ? <ActivityIndicator color={Colors.white} /> : <Feather name="arrow-right" size={20} color={Colors.white} />}
         </TouchableOpacity>
       </View>
     );
@@ -336,12 +365,12 @@ export function CheckoutModal({
   return (
     <Modal
       animationType="slide"
-      onRequestClose={handleClose}
+      onRequestClose={handleDismiss}
       transparent
       visible={visible}
     >
       <View style={styles.overlay}>
-        <Pressable accessibilityLabel="Fechar finalização" onPress={handleClose} style={styles.backdrop} />
+        <Pressable accessibilityLabel="Fechar finalização" disabled={isFinishingOrder} onPress={handleDismiss} style={styles.backdrop} />
 
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -351,8 +380,10 @@ export function CheckoutModal({
 
             <TouchableOpacity
               accessibilityLabel="Fechar finalização"
+              accessibilityRole="button"
               activeOpacity={0.8}
-              onPress={handleClose}
+              disabled={isFinishingOrder}
+              onPress={handleDismiss}
               style={styles.closeButton}
             >
               <Feather name="x" size={22} color={Colors.white} />
@@ -361,6 +392,13 @@ export function CheckoutModal({
 
           {step === 'selecting' && (
             <>
+              <View style={styles.tableNotice}>
+                <Feather name="map-pin" size={16} color={Colors.accentRed} />
+                <Text style={styles.tableNoticeText}>
+                  Confira se você está na <Text style={styles.tableNoticeHighlight}>{tableLabel}</Text>. O pedido será registrado para essa mesa
+                </Text>
+              </View>
+
               <View style={styles.options}>
                 {PAYMENT_OPTIONS.map(option => {
                   const isSelected = selectedPayment === option.id;
@@ -478,9 +516,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 46,
   },
+  tableNotice: {
+    alignItems: 'center',
+    backgroundColor: '#202020',
+    borderColor: 'rgba(255, 0, 0, 0.45)',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  tableNoticeText: {
+    color: Colors.textGray,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
+  },
+  tableNoticeHighlight: {
+    color: Colors.white,
+    fontWeight: '900',
+    textDecorationLine: 'underline',
+  },
   options: {
     gap: 12,
-    marginTop: 22,
+    marginTop: 14,
   },
   paymentCard: {
     alignItems: 'center',
