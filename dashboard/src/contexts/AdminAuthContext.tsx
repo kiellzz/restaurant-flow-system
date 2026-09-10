@@ -1,13 +1,11 @@
 import { createContext, PropsWithChildren, useContext, useMemo, useState } from 'react';
-
-const MOCK_ADMIN_EMAIL = 'admin@restaurante.com';
-const MOCK_ADMIN_PASSWORD = 'admin123';
+import { authenticateDashboardUser, type DashboardRole, TEST_DASHBOARD_USERS } from '../utils/dashboardAuth';
 
 type AdminAuthContextValue = {
   adminName: string;
   isAuthenticated: boolean;
-  mockEmail: string;
-  mockPassword: string;
+  role: DashboardRole | null;
+  testUsers: typeof TEST_DASHBOARD_USERS;
   login: (email: string, password: string) => boolean;
   logout: () => void;
 };
@@ -16,30 +14,29 @@ const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 
 export function AdminAuthProvider({ children }: PropsWithChildren) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [adminName, setAdminName] = useState('Administrador');
+  const [adminName, setAdminName] = useState('');
+  const [role, setRole] = useState<DashboardRole | null>(null);
 
   const value = useMemo<AdminAuthContextValue>(() => ({
     adminName,
     isAuthenticated,
-    mockEmail: MOCK_ADMIN_EMAIL,
-    mockPassword: MOCK_ADMIN_PASSWORD,
+    role,
+    testUsers: TEST_DASHBOARD_USERS,
     login: (email, password) => {
-      const isMockAdmin =
-        email.trim().toLowerCase() === MOCK_ADMIN_EMAIL &&
-        password === MOCK_ADMIN_PASSWORD;
-
-      if (isMockAdmin) {
-        setAdminName('Equipe Restaurante X');
+      const user = authenticateDashboardUser(email, password);
+      if (user) {
+        setAdminName(user.name);
+        setRole(user.role);
         setIsAuthenticated(true);
       }
-
-      return isMockAdmin;
+      return Boolean(user);
     },
     logout: () => {
-      setAdminName('Administrador');
+      setAdminName('');
+      setRole(null);
       setIsAuthenticated(false);
     },
-  }), [adminName, isAuthenticated]);
+  }), [adminName, isAuthenticated, role]);
 
   return (
     <AdminAuthContext.Provider value={value}>

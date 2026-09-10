@@ -1,4 +1,5 @@
 const foodImages: Record<string, any> = {
+  default: require('../assets/images/foods/default-food.png'),
   meatburger: require('../assets/images/foods/meatburger.webp'),
   hamburguer: require('../assets/images/foods/meatburger.webp'),
   fishstew: require('../assets/images/foods/fishstew.webp'),
@@ -67,6 +68,9 @@ function getRemoteImageSource(image?: string) {
 }
 
 export function getFoodImage(name: string, image?: string) {
+  if (image === 'default-food.png') {
+    return foodImages.default;
+  }
   const remoteImage = getRemoteImageSource(image);
 
   if (remoteImage) {
@@ -74,7 +78,7 @@ export function getFoodImage(name: string, image?: string) {
   }
 
   const key = normalizeName(name);
-  return foodImages[key] ?? foodImages.meatburger;
+  return foodImages[key] ?? foodImages.default;
 }
 
 export function getCategoryImage(name: string) {

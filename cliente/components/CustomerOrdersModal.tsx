@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import type { ApiDeliveryConfirmation, ApiOrder, ApiOrderStatus } from '@/services/api';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Props = {
   visible: boolean;
@@ -13,6 +13,8 @@ type Props = {
   onClose: () => void;
   onRetry: () => void;
   onConfirm: (id: string, confirmation: ApiDeliveryConfirmation) => void;
+  onCancel: (id: string) => Promise<boolean>;
+  onRequestCancel: (id: string, reason: string) => Promise<boolean>;
 };
 
 const STEPS: ApiOrderStatus[] = ['recebido', 'em_preparo', 'pronto', 'entregue'];
@@ -22,11 +24,12 @@ const STATUS_COPY: Record<ApiOrderStatus, { title: string; description: string }
   em_preparo: { title: 'Preparando seu pedido', description: 'Seu pedido está na cozinha. Avisaremos por aqui quando estiver pronto.' },
   pronto: { title: 'Prontinho para você', description: 'Seu pedido está pronto e a equipe vai levá-lo até sua mesa.' },
   entregue: { title: 'Seu pedido chegou?', description: 'A equipe marcou a entrega. Confirme abaixo se está tudo certo.' },
+  cancelado: { title: 'Pedido cancelado', description: 'Este pedido foi encerrado e retirado da fila.' },
 };
 
 export function isCustomerOrderActive(order: ApiOrder) {
-  return order.status !== 'entregue' ||
-    (order.confirmacaoEntrega !== 'confirmado' && !order.resolucaoEntrega);
+  return order.status !== 'cancelado' && (order.status !== 'entregue' ||
+    (order.confirmacaoEntrega !== 'confirmado' && !order.resolucaoEntrega));
 }
 
 function orderLabel(order: ApiOrder) {
@@ -49,8 +52,37 @@ function itemCount(order: ApiOrder) {
 }
 
 function OrderDetails({ order }: { order: ApiOrder }) {
+  const timelineStatus = order.cancelamento?.statusAnterior ?? order.status;
   return (
     <View style={styles.details}>
+      <View style={styles.timeline}>
+        <Text style={styles.timelineHeading}>Histórico das etapas</Text>
+        {STEPS.map((status, index) => {
+          const date = order.historicoEtapas?.find(entry => entry.status === status)?.registradoEm
+            ?? (status === 'recebido' ? order.criadoEm : undefined);
+          const reached = index <= STEPS.indexOf(timelineStatus);
+          return (
+            <View key={status} style={styles.timelineRow}>
+              <Feather name={date ? 'check-circle' : 'clock'} size={14} color={date ? '#8FD8AE' : '#92929E'} />
+              <View style={styles.flexible}>
+                <Text style={styles.timelineLabel}>{LABELS[index]}</Text>
+                <Text style={styles.metadata}>{date
+                  ? new Date(date).toLocaleString('pt-BR')
+                  : reached ? 'Horário não registrado' : 'Aguardando esta etapa'}</Text>
+              </View>
+            </View>
+          );
+        })}
+        {order.cancelamento && (
+          <View style={styles.timelineRow}>
+            <Feather name="x-circle" size={14} color="#F08080" />
+            <View style={styles.flexible}>
+              <Text style={styles.timelineCancelled}>Cancelado</Text>
+              <Text style={styles.metadata}>{new Date(order.cancelamento.canceladoEm).toLocaleString('pt-BR')}</Text>
+            </View>
+          </View>
+        )}
+      </View>
       {order.itens.map((item, index) => (
         <View key={`${order._id}-${index}`} style={styles.item}>
           <View style={styles.itemRow}>
@@ -73,13 +105,32 @@ function OrderDetails({ order }: { order: ApiOrder }) {
           <Text style={styles.metadata}>{order.resolucaoEntrega.atendente} · {orderDate(order.resolucaoEntrega.resolvidoEm)}</Text>
         </View>
       )}
+      {order.cancelamento && (
+        <View style={styles.cancellationRecord}>
+          <View style={styles.inlineRow}>
+            <Feather name="x-circle" size={15} color="#F08080" />
+            <Text style={styles.cancellationTitle}>Cancelado {order.cancelamento.origem === 'cliente' ? 'por você' : 'pela equipe'}</Text>
+          </View>
+          {order.cancelamento.motivo && <Text style={styles.description}>{order.cancelamento.motivo}</Text>}
+          {order.cancelamento.atendente && <Text style={styles.metadata}>Responsável: {order.cancelamento.atendente}</Text>}
+          {order.reembolso?.status === 'concluido_simulado' ? (
+            <View style={styles.refundBox}>
+              <Text style={styles.refundTitle}>Reembolso simulado concluído</Text>
+              <Text style={styles.metadata}>{currency(order.reembolso.valor)} · {order.reembolso.formaPagamento === 'pix' ? 'PIX' : 'Cartão'} · {orderDate(order.reembolso.processadoEm)}</Text>
+              <Text style={styles.refundNote}>Esta demonstração não movimenta dinheiro real.</Text>
+            </View>
+          ) : <Text style={styles.refundNote}>Sem reembolso: este pedido não possuía pagamento registrado.</Text>}
+        </View>
+      )}
     </View>
   );
 }
 
-export function CustomerOrdersModal({ visible, orders, loading, error, busyOrderIds, onClose, onRetry, onConfirm }: Props) {
+export function CustomerOrdersModal({ visible, orders, loading, error, busyOrderIds, onClose, onRetry, onConfirm, onCancel, onRequestCancel }: Props) {
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(() => new Set());
+  const [cancellingOrderId, setCancellingOrderId] = React.useState<string | null>(null);
+  const [cancellationReason, setCancellationReason] = React.useState('');
   const activeOrders = orders.filter(isCustomerOrderActive);
   const completedOrders = orders.filter(order => !isCustomerOrderActive(order));
 
@@ -87,6 +138,8 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
     if (visible) {
       setHistoryOpen(false);
       setExpandedIds(new Set());
+      setCancellingOrderId(null);
+      setCancellationReason('');
     }
   }, [visible]);
 
@@ -97,6 +150,17 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
       else next.add(id);
       return next;
     });
+  }
+
+  async function submitCancellation(order: ApiOrder) {
+    if (order.status === 'em_preparo' && cancellationReason.trim().length < 5) return;
+    const cancelled = order.status === 'recebido'
+      ? await onCancel(order._id)
+      : await onRequestCancel(order._id, cancellationReason.trim());
+    if (cancelled) {
+      setCancellingOrderId(null);
+      setCancellationReason('');
+    }
   }
 
   return (
@@ -201,11 +265,73 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
                               <Text style={styles.total}>{currency(order.total)}</Text>
                             </View>
                             <TouchableOpacity onPress={() => toggleDetails(order._id)} accessibilityRole="button" accessibilityState={{ expanded }} aria-expanded={expanded}
-                              accessibilityLabel={`${expanded ? 'Ocultar' : 'Ver'} itens de ${orderLabel(order)}`} style={styles.detailsButton}>
-                              <Text style={styles.detailLabel}>{expanded ? 'Ocultar itens' : 'Ver itens'}</Text>
+                              accessibilityLabel={`${expanded ? 'Ocultar' : 'Ver'} detalhes e etapas de ${orderLabel(order)}`} style={styles.detailsButton}>
+                              <Text style={styles.detailLabel}>{expanded ? 'Ocultar detalhes' : 'Detalhes e etapas'}</Text>
                               <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color="#B3B3B3" />
                             </TouchableOpacity>
                           </View>
+                          {order.solicitacaoCancelamento?.status === 'pendente' && (
+                            <View style={styles.requestStatus}>
+                              <Feather name="clock" size={15} color="#E5B46B" />
+                              <View style={styles.flexible}>
+                                <Text style={styles.requestStatusTitle}>Cancelamento aguardando aprovação</Text>
+                                <Text style={styles.metadata}>A equipe recebeu sua explicação. O pedido continua em preparo até a decisão.</Text>
+                              </View>
+                            </View>
+                          )}
+                          {order.solicitacaoCancelamento?.status === 'recusada' && (
+                            <View style={styles.requestStatus}>
+                              <Feather name="info" size={15} color="#A9B9D3" />
+                              <View style={styles.flexible}>
+                                <Text style={styles.requestStatusTitle}>Solicitação não aprovada</Text>
+                                <Text style={styles.metadata}>A equipe manteve o pedido em preparo.</Text>
+                              </View>
+                            </View>
+                          )}
+                          {(order.status === 'recebido' || (order.status === 'em_preparo' && !order.solicitacaoCancelamento)) && cancellingOrderId !== order._id && (
+                            <TouchableOpacity
+                              accessibilityRole="button"
+                              disabled={busy}
+                              onPress={() => { setCancellingOrderId(order._id); setCancellationReason(''); }}
+                              style={styles.cancelLink}
+                            >
+                              <Text style={styles.cancelLinkText}>{order.status === 'recebido' ? 'Cancelar pedido' : 'Solicitar cancelamento'}</Text>
+                            </TouchableOpacity>
+                          )}
+                          {(order.status === 'recebido' || order.status === 'em_preparo') && cancellingOrderId === order._id && (
+                            <View style={styles.cancelWarning}>
+                              <Text style={styles.cancelWarningTitle}>{order.status === 'recebido' ? 'Cancelar este pedido?' : 'Solicitar cancelamento?'}</Text>
+                              <Text style={styles.description}>{order.status === 'recebido'
+                                ? 'O preparo ainda não começou. Confirme para retirar o pedido da fila e registrar o reembolso simulado. Esta ação não pode ser desfeita.'
+                                : 'Como o preparo já começou, explique o motivo. A equipe avaliará a solicitação e o pedido continuará em andamento até a decisão.'}</Text>
+                              {order.status === 'em_preparo' && (
+                                <TextInput
+                                  accessibilityLabel="Motivo da solicitação de cancelamento"
+                                  maxLength={300}
+                                  multiline
+                                  onChangeText={setCancellationReason}
+                                  placeholder="Por que você precisa cancelar?"
+                                  placeholderTextColor="#777780"
+                                  style={styles.cancelInput}
+                                  value={cancellationReason}
+                                />
+                              )}
+                              <View style={styles.cancelActions}>
+                                <TouchableOpacity disabled={busy} onPress={() => setCancellingOrderId(null)} style={styles.cancelBackButton}>
+                                  <Text style={styles.detailLabel}>Manter pedido</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  accessibilityRole="button"
+                                  accessibilityState={{ disabled: busy || (order.status === 'em_preparo' && cancellationReason.trim().length < 5) }}
+                                  disabled={busy || (order.status === 'em_preparo' && cancellationReason.trim().length < 5)}
+                                  onPress={() => void submitCancellation(order)}
+                                  style={[styles.cancelConfirmButton, (busy || (order.status === 'em_preparo' && cancellationReason.trim().length < 5)) && styles.disabled]}
+                                >
+                                  <Text style={styles.cancelConfirmText}>{busy ? 'Enviando...' : order.status === 'recebido' ? 'Confirmar cancelamento' : 'Enviar solicitação'}</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
                           {expanded && <OrderDetails order={order} />}
                         </View>
                       );
@@ -222,10 +348,10 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
                 {completedOrders.length > 0 && (
                   <View style={styles.historySection}>
                     <TouchableOpacity onPress={() => setHistoryOpen(current => !current)} accessibilityRole="button"
-                      accessibilityLabel={`Pedidos concluídos, ${completedOrders.length}`} accessibilityState={{ expanded: historyOpen }} aria-expanded={historyOpen} style={styles.historyToggle}>
+                      accessibilityLabel={`Pedidos encerrados, ${completedOrders.length}`} accessibilityState={{ expanded: historyOpen }} aria-expanded={historyOpen} style={styles.historyToggle}>
                       <Feather name="clock" size={19} color="#959595" />
                       <View style={styles.flexible}>
-                        <Text style={styles.historyTitle}>Pedidos concluídos</Text>
+                        <Text style={styles.historyTitle}>Pedidos encerrados</Text>
                         <Text style={styles.historySubtitle}>Toque para {historyOpen ? 'recolher' : 'consultar o histórico'}</Text>
                       </View>
                       <Text style={styles.count}>{completedOrders.length}</Text>
@@ -246,7 +372,7 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
                           </TouchableOpacity>
                           {expanded && (
                             <View style={styles.historyDetails}>
-                              <Text style={styles.metadata}>{order.resolucaoEntrega ? 'Concluído após atendimento' : 'Entrega confirmada por você'}</Text>
+                              <Text style={styles.metadata}>{order.status === 'cancelado' ? 'Pedido cancelado' : order.resolucaoEntrega ? 'Concluído após atendimento' : 'Entrega confirmada por você'}</Text>
                               <OrderDetails order={order} />
                             </View>
                           )}
@@ -265,6 +391,27 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
 }
 
 const styles = StyleSheet.create({
+  timelineCancelled: { color: '#F2AAAA', fontSize: 12, fontWeight: '600', marginBottom: 3 },
+  cancellationRecord: { borderTopWidth: 1, borderTopColor: '#3B3032', paddingTop: 12, marginTop: 3, gap: 8 },
+  cancellationTitle: { color: '#F2AAAA', fontSize: 12, fontWeight: '600' },
+  refundBox: { backgroundColor: '#203129', borderRadius: 10, padding: 11, gap: 4, marginTop: 3 },
+  refundTitle: { color: '#9DDBB5', fontSize: 12, fontWeight: '600' },
+  refundNote: { color: '#9999A3', fontSize: 10, lineHeight: 16 },
+  cancelLink: { alignSelf: 'flex-start', minHeight: 42, justifyContent: 'center', marginTop: 5 },
+  cancelLinkText: { color: '#E49A9A', fontSize: 12, fontWeight: '500' },
+  cancelWarning: { backgroundColor: '#2B2022', borderWidth: 1, borderColor: '#583539', borderRadius: 13, padding: 13, gap: 11, marginTop: 10 },
+  cancelWarningTitle: { color: '#F5EDED', fontSize: 14, fontWeight: '600' },
+  cancelInput: { minHeight: 72, borderWidth: 1, borderColor: '#574145', backgroundColor: '#201A1C', borderRadius: 10, padding: 11, color: '#F2F2F4', fontSize: 12, lineHeight: 18, textAlignVertical: 'top' },
+  requestStatus: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', backgroundColor: '#242327', borderWidth: 1, borderColor: '#3B3940', borderRadius: 11, padding: 11, marginTop: 10 },
+  requestStatusTitle: { color: '#E8E5EA', fontSize: 12, fontWeight: '600', marginBottom: 3 },
+  cancelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
+  cancelBackButton: { minHeight: 42, paddingHorizontal: 12, justifyContent: 'center' },
+  cancelConfirmButton: { minHeight: 42, paddingHorizontal: 13, borderRadius: 10, backgroundColor: '#C92525', justifyContent: 'center' },
+  cancelConfirmText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
+  timeline: { gap: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#34343B', marginBottom: 8 },
+  timelineHeading: { color: '#EEEEF2', fontSize: 13, fontWeight: '600' },
+  timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timelineLabel: { color: '#D4D4DD', fontSize: 12, fontWeight: '500', marginBottom: 3 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 16 },
   sheet: { width: '100%', maxWidth: 440, maxHeight: '85%', alignSelf: 'center', backgroundColor: '#141414', borderWidth: 1, borderColor: '#2A2A2A', borderRadius: 26, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 22, paddingBottom: 20 },

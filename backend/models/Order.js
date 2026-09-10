@@ -39,6 +39,7 @@ const orderSchema = new mongoose.Schema(
     },
     mesa: { type: orderTableSchema, default: null },
     itens: { type: [orderItemSchema], required: true },
+    observacaoGeral: { type: String, trim: true, maxlength: 500, default: '' },
     total: { type: Number, required: true },
     formaPagamento: {
       type: String,
@@ -48,9 +49,14 @@ const orderSchema = new mongoose.Schema(
         message: 'Forma de pagamento inválida',
       },
     },
+    origemPedido: {
+      type: String,
+      enum: ['cliente', 'manual'],
+      default() { return this.formaPagamento == null ? 'manual' : 'cliente'; },
+    },
     status: {
       type: String,
-      enum: ['recebido', 'em_preparo', 'pronto', 'entregue'],
+      enum: ['recebido', 'em_preparo', 'pronto', 'entregue', 'cancelado'],
       default: 'recebido',
     },
     confirmacaoEntrega: {
@@ -58,11 +64,54 @@ const orderSchema = new mongoose.Schema(
       enum: ['pendente', 'confirmado', 'nao_entregue'],
       default: 'pendente',
     },
+    historicoEtapas: {
+      type: [new mongoose.Schema({
+        status: { type: String, enum: ['recebido', 'em_preparo', 'pronto', 'entregue', 'cancelado'], required: true },
+        registradoEm: { type: Date, required: true },
+      }, { _id: false })],
+      default: [],
+    },
     resolucaoEntrega: {
       type: new mongoose.Schema({
         descricao: { type: String, required: true, trim: true, maxlength: 500 },
         atendente: { type: String, required: true, trim: true, maxlength: 100 },
         resolvidoEm: { type: Date, required: true },
+      }, { _id: false }),
+      default: null,
+    },
+    solicitacaoCancelamento: {
+      type: new mongoose.Schema({
+        motivo: { type: String, required: true, trim: true, minlength: 5, maxlength: 300 },
+        status: { type: String, enum: ['pendente', 'aprovada', 'recusada'], default: 'pendente', required: true },
+        solicitadoEm: { type: Date, required: true },
+        revisadoEm: { type: Date, default: null },
+        atendente: { type: String, trim: true, maxlength: 100, default: null },
+      }, { _id: false }),
+      default: null,
+    },
+    cancelamento: {
+      type: new mongoose.Schema({
+        origem: { type: String, enum: ['cliente', 'equipe'], required: true },
+        motivo: {
+          type: String,
+          default: null,
+          trim: true,
+          minlength: 5,
+          maxlength: 300,
+          required() { return this.origem === 'equipe'; },
+        },
+        atendente: { type: String, trim: true, maxlength: 100, default: null },
+        statusAnterior: { type: String, enum: ['recebido', 'em_preparo', 'pronto'], required: true },
+        canceladoEm: { type: Date, required: true },
+      }, { _id: false }),
+      default: null,
+    },
+    reembolso: {
+      type: new mongoose.Schema({
+        status: { type: String, enum: ['concluido_simulado', 'nao_aplicavel'], required: true },
+        valor: { type: Number, min: 0, required: true },
+        formaPagamento: { type: String, enum: ['pix', 'cartao', 'nao_informada'], required: true },
+        processadoEm: { type: Date, required: true },
       }, { _id: false }),
       default: null,
     },

@@ -1,12 +1,12 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { ChefHat, LockKeyhole, LogIn, Mail, Zap } from 'lucide-react';
+import { ChefHat, LockKeyhole, LogIn, Mail, ShieldCheck, UserRound } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
 import { useAdminAuth } from '../../contexts/AdminAuthContext';
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, login, mockEmail, mockPassword } = useAdminAuth();
+  const { isAuthenticated, login, testUsers } = useAdminAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,9 +20,10 @@ export function AdminLoginPage() {
     return <Navigate to="/admin" replace />;
   }
 
-  function fillTestCredentials() {
-    setEmail(mockEmail);
-    setPassword(mockPassword);
+  function fillTestCredentials(userIndex: number) {
+    const user = testUsers[userIndex];
+    setEmail(user.email);
+    setPassword(user.password);
     setError('');
   }
 
@@ -49,18 +50,27 @@ export function AdminLoginPage() {
 
         <div className="login-heading">
           <p className="login-kicker">Restaurante X</p>
-          <h1 id="admin-login-title">Painel Administrativo</h1>
-          <p>Acesse a área interna para acompanhar a operação do restaurante.</p>
+          <h1 id="admin-login-title">Painel do restaurante</h1>
+          <p>Entre como administrador ou funcionário para acessar as funções do seu perfil.</p>
         </div>
 
-        <button
-          className="test-fill-button"
-          onClick={fillTestCredentials}
-          type="button"
-        >
-          <Zap size={18} aria-hidden="true" />
-          Preencher dados de teste
-        </button>
+        <div className="test-account-options" aria-label="Contas de teste">
+          {testUsers.map((user, index) => (
+            <button
+              aria-pressed={email.trim().toLowerCase() === user.email}
+              className={`test-account-button is-${user.role}${email.trim().toLowerCase() === user.email ? ' is-selected' : ''}`}
+              key={user.role}
+              onClick={() => fillTestCredentials(index)}
+              type="button"
+            >
+              <span>{user.role === 'administrador' ? <ShieldCheck size={18} aria-hidden="true" /> : <UserRound size={18} aria-hidden="true" />}</span>
+              <span>
+                <strong>{user.role === 'administrador' ? 'Administrador' : 'Funcionário'}</strong>
+                <small>{user.role === 'administrador' ? 'Acesso completo' : 'Somente fila de pedidos'}</small>
+              </span>
+            </button>
+          ))}
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="field-group">
@@ -71,7 +81,7 @@ export function AdminLoginPage() {
                 autoComplete="email"
                 inputMode="email"
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder={mockEmail}
+                placeholder="seuemail@restaurante.com"
                 type="email"
                 value={email}
               />
@@ -85,7 +95,7 @@ export function AdminLoginPage() {
               <input
                 autoComplete="current-password"
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder={mockPassword}
+                placeholder="Digite sua senha"
                 type="password"
                 value={password}
               />

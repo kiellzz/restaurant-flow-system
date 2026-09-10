@@ -5,7 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   ApiDeliveryConfirmation,
   ApiOrder,
+  cancelCustomerOrder,
   fetchOrders,
+  requestCustomerOrderCancellation,
   subscribeToRealtimeEvents,
   updateDeliveryConfirmation,
 } from '@/services/api';
@@ -82,7 +84,7 @@ export function Header({
     const normalizedUserName = normalizeCustomerName(userName);
 
     return orders
-      .filter(order => normalizeCustomerName(order.cliente?.nome ?? '') === normalizedUserName)
+      .filter(order => order.origemPedido !== 'manual' && normalizeCustomerName(order.cliente?.nome ?? '') === normalizedUserName)
       .sort((first, second) => (
         new Date(second.criadoEm).getTime() - new Date(first.criadoEm).getTime()
       ));
@@ -189,6 +191,48 @@ export function Header({
     } catch (error) {
       console.error(error);
       setOrdersError('Não foi possível registrar a confirmação da entrega.');
+    } finally {
+      setBusyDeliveryConfirmationIds(currentIds => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(orderId);
+        return nextIds;
+      });
+    }
+  }
+
+  async function handleCancelOrder(orderId: string) {
+    setBusyDeliveryConfirmationIds(currentIds => new Set(currentIds).add(orderId));
+    try {
+      const updatedOrder = await cancelCustomerOrder(orderId);
+      setOrders(currentOrders => currentOrders.map(order => order._id === orderId ? updatedOrder : order));
+      setOrdersError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setOrdersError(error instanceof Error ? error.message : 'Não foi possível cancelar o pedido.');
+      await loadCustomerOrders({ silent: true });
+      return false;
+    } finally {
+      setBusyDeliveryConfirmationIds(currentIds => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(orderId);
+        return nextIds;
+      });
+    }
+  }
+
+  async function handleRequestCancellation(orderId: string, reason: string) {
+    setBusyDeliveryConfirmationIds(currentIds => new Set(currentIds).add(orderId));
+    try {
+      const updatedOrder = await requestCustomerOrderCancellation(orderId, reason);
+      setOrders(currentOrders => currentOrders.map(order => order._id === orderId ? updatedOrder : order));
+      setOrdersError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setOrdersError(error instanceof Error ? error.message : 'Não foi possível solicitar o cancelamento.');
+      await loadCustomerOrders({ silent: true });
+      return false;
     } finally {
       setBusyDeliveryConfirmationIds(currentIds => {
         const nextIds = new Set(currentIds);
@@ -373,6 +417,8 @@ export function Header({
         onClose={() => setIsOrdersModalVisible(false)}
         onRetry={() => loadCustomerOrders()}
         onConfirm={handleDeliveryConfirmation}
+        onCancel={handleCancelOrder}
+        onRequestCancel={handleRequestCancellation}
       />
       {renderTableModal()}
     </View>

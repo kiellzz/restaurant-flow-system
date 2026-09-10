@@ -20,8 +20,10 @@ import {
   Image as ImageIcon,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Plus,
   RefreshCcw,
+  Search,
   Trash2,
   Upload,
   Utensils,
@@ -42,6 +44,7 @@ import {
   CreateOrderPayload,
   MenuItemPayload,
   createOrder,
+  cancelOrder,
   createMenuItem,
   deleteMenuItem,
   fetchMenuItems,
@@ -49,15 +52,25 @@ import {
   getApiAssetUrl,
   resetDemo,
   resolveDeliveryIssue,
+  reviewCancellationRequest,
   subscribeToRealtimeEvents,
   updateMenuItem,
   updateOrderStatus,
   uploadMenuItemImage,
 } from '../../services/api';
-import { hasOpenDeliveryIssue, isCompletedOrder } from '../../utils/orderWorkflow';
+import { hasOpenCancellationRequest, hasOpenDeliveryIssue, isCompletedOrder, isManualOrder } from '../../utils/orderWorkflow';
+import { canManageMenu } from '../../utils/dashboardAuth';
+import {
+  buildManualSelectedOptions,
+  calculateManualUnitPrice,
+  isManualSelectionValid,
+  restoreManualSelections,
+  type ManualMultipleSelections,
+  type ManualSingleSelections,
+} from '../../utils/manualOrder';
 
 type AdminSection = 'orders' | 'menu';
-type OrderView = 'active' | 'issues' | 'history';
+type OrderView = 'active' | 'issues' | 'history' | 'manual';
 type OrderStatus = ApiOrderStatus;
 type MenuCategory = ApiMenuCategory;
 type MenuItemTipo = ApiMenuItemTipo;
@@ -75,11 +88,18 @@ type Order = {
   id: string;
   customerName: string;
   createdAt: Date;
+  historicoEtapas: ApiOrder['historicoEtapas'];
   items: OrderItem[];
+  generalObservation: string;
   tableNumber: number | null;
   status: OrderStatus;
   confirmacaoEntrega: ApiOrder['confirmacaoEntrega'];
   resolucaoEntrega: ApiOrder['resolucaoEntrega'];
+  cancellationRequest: ApiOrder['solicitacaoCancelamento'];
+  cancelamento: ApiOrder['cancelamento'];
+  reembolso: ApiOrder['reembolso'];
+  paymentMethod: ApiOrder['formaPagamento'];
+  origin: NonNullable<ApiOrder['origemPedido']>;
   total: number;
 };
 
@@ -144,8 +164,14 @@ type CropDragState = {
 
 type ManualOrderFormState = {
   customerName: string;
+  generalObservation: string;
   tableNumber: string;
-  quantities: Record<string, number>;
+  items: Record<string, {
+    observation: string;
+    quantity: number;
+    selectedOptions: ApiSelectedOption[];
+    unitPrice: number;
+  }>;
 };
 
 const MENU_CATEGORIES: MenuCategory[] = [
@@ -160,6 +186,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   em_preparo: 'Em preparo',
   pronto: 'Pronto',
   entregue: 'Entregue',
+  cancelado: 'Cancelado',
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
@@ -167,6 +194,7 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   em_preparo: 'status-preparing',
   pronto: 'status-ready',
   entregue: 'status-delivered',
+  cancelado: 'status-cancelled',
 };
 
 const MENU_IMAGE_BY_KEY: Record<string, string> = {
@@ -215,8 +243,9 @@ const EMPTY_MENU_FORM: MenuFormState = {
 
 const EMPTY_MANUAL_ORDER_FORM: ManualOrderFormState = {
   customerName: '',
+  generalObservation: '',
   tableNumber: '1',
-  quantities: {},
+  items: {},
 };
 
 function formatCurrency(value: number) {
@@ -251,6 +280,9 @@ function normalizeText(value: string) {
 }
 
 function getMenuImageSrc(item: ApiMenuItem) {
+  if (!item.imagem || item.imagem === 'default-food.png') {
+    return '/menu/default-food.png';
+  }
   if (item.imagem.startsWith('http')) {
     return item.imagem;
   }
@@ -272,6 +304,10 @@ function getMenuImageSrc(item: ApiMenuItem) {
 function getMenuFormImageSrc(image: string, itemName: string) {
   const imageValue = image.trim();
 
+  if (!imageValue || imageValue === 'default-food.png') {
+    return '/menu/default-food.png';
+  }
+
   if (imageValue.startsWith('http')) {
     return imageValue;
   }
@@ -287,7 +323,7 @@ function getMenuFormImageSrc(image: string, itemName: string) {
   const imageKey = normalizeText(imageValue.replace(/\.[a-z0-9]+$/i, ''));
   const nameKey = normalizeText(itemName);
 
-  return MENU_IMAGE_BY_KEY[imageKey] ?? MENU_IMAGE_BY_KEY[nameKey] ?? '/menu/meatburger.webp';
+  return MENU_IMAGE_BY_KEY[imageKey] ?? MENU_IMAGE_BY_KEY[nameKey] ?? '/menu/default-food.png';
 }
 
 function loadImage(source: string) {
@@ -424,11 +460,47 @@ function getDiscountPercent(price: number, discountedPrice: number | null) {
   return Math.round((1 - discountedPrice / price) * 100);
 }
 
+function OrderTimeline({ order }: { order: Order }) {
+  const steps: OrderStatus[] = ['recebido', 'em_preparo', 'pronto', 'entregue'];
+  const labels = ['Recebido', 'Em preparo', 'Pronto', 'Entregue'];
+  const timelineStatus = order.cancelamento?.statusAnterior ?? order.status;
+  return (
+    <details className="order-timeline">
+      <summary>Histórico das etapas</summary>
+      <ol>
+        {steps.map((status, index) => {
+          const date = order.historicoEtapas?.find(entry => entry.status === status)?.registradoEm
+            ?? (status === 'recebido' ? order.createdAt.toISOString() : undefined);
+          return (
+            <li key={status} className={date ? 'is-recorded' : ''}>
+              <span>{labels[index]}</span>
+              {date ? <time dateTime={date}>{new Date(date).toLocaleString('pt-BR')}</time>
+                : <small>{index <= steps.indexOf(timelineStatus) ? 'Horário não registrado' : 'Etapa não alcançada'}</small>}
+            </li>
+          );
+        })}
+      </ol>
+      {order.cancelamento && <p className="timeline-cancelled"><strong>Cancelado</strong><time>{new Date(order.cancelamento.canceladoEm).toLocaleString('pt-BR')}</time></p>}
+    </details>
+  );
+}
+
+function GeneralOrderObservation({ order }: { order: Order }) {
+  if (!order.generalObservation) return null;
+  return (
+    <div className="general-order-observation">
+      <strong><MessageSquare size={14} aria-hidden="true" /> Observação geral</strong>
+      <p>{order.generalObservation}</p>
+    </div>
+  );
+}
+
 function mapApiOrder(order: ApiOrder): Order {
   return {
     id: order._id,
     customerName: order.cliente?.nome || 'Cliente',
     createdAt: new Date(order.criadoEm),
+    historicoEtapas: order.historicoEtapas,
     items: order.itens.map(item => ({
       finalUnitPrice: item.precoUnitarioFinal ?? null,
       name: item.nome,
@@ -436,10 +508,16 @@ function mapApiOrder(order: ApiOrder): Order {
       selectedOptions: item.opcoesSelecionadas ?? [],
       quantity: item.quantidade,
     })),
+    generalObservation: order.observacaoGeral?.trim() ?? '',
     tableNumber: order.mesa?.numero ?? null,
     status: order.status,
     confirmacaoEntrega: order.confirmacaoEntrega ?? 'pendente',
     resolucaoEntrega: order.resolucaoEntrega ?? null,
+    cancellationRequest: order.solicitacaoCancelamento ?? null,
+    cancelamento: order.cancelamento ?? null,
+    reembolso: order.reembolso ?? null,
+    paymentMethod: order.formaPagamento,
+    origin: isManualOrder(order) ? 'manual' : 'cliente',
     total: order.total,
   };
 }
@@ -600,16 +678,78 @@ function createMenuPayload(menuForm: MenuFormState): MenuItemPayload {
       ? roundCurrency(price * (1 - discountPercent / 100))
       : null,
     descricao: menuForm.description.trim(),
-    imagem: menuForm.image.trim() || 'meatburger.webp',
+    imagem: menuForm.image.trim() || 'default-food.png',
     disponivel: menuForm.available,
     tipo: menuForm.itemType,
     gruposOpcoes: createOptionGroupsPayload(menuForm),
   };
 }
 
+function ProductPreview({ form }: { form: MenuFormState }) {
+  const price = normalizePositiveNumber(form.price);
+  const discount = normalizeDiscount(form.discountPercent, form.hasDiscount);
+  const finalPrice = roundCurrency(price * (1 - discount / 100));
+  const hasPrice = form.price.trim() !== '' && Number.isFinite(Number(form.price.replace(',', '.'))) && Number(form.price.replace(',', '.')) >= 0;
+  const hasOptions = form.itemType === 'com_acompanhamento';
+
+  return (
+    <aside className="product-preview" aria-label="Prévia do produto">
+      <div className="product-preview-heading">
+        <span>Prévia do produto</span>
+        <small>Atualiza enquanto você preenche</small>
+      </div>
+      <article className="product-preview-card">
+        <div className="product-preview-image">
+          <img src={getMenuFormImageSrc(form.image, form.name)} alt={form.name.trim() || 'Imagem do produto'} />
+          {hasPrice && discount > 0 && <span className="product-preview-discount">−{discount}%</span>}
+        </div>
+        <div className="product-preview-content">
+          <span className="product-preview-category">{form.category}</span>
+          <h3>{form.name.trim() || 'Nome do produto'}</h3>
+          <p>{form.description.trim() || 'A descrição do seu produto aparecerá aqui.'}</p>
+          <div className="product-preview-price">
+            <span>{hasOptions ? 'Preço base' : 'Preço para o cliente'}</span>
+            {hasPrice ? (
+              <div>
+                {discount > 0 && <del>{formatCurrency(price)}</del>}
+                <strong>{formatCurrency(finalPrice)}</strong>
+              </div>
+            ) : <strong className="product-preview-placeholder">Informe o preço</strong>}
+          </div>
+          <span className={`product-preview-availability${form.available ? '' : ' is-unavailable'}`}>
+            {form.available ? 'Disponível para pedidos' : 'Indisponível no cardápio'}
+          </span>
+        </div>
+      </article>
+      {hasOptions && (
+        <div className="product-preview-options">
+          <h4>Acompanhamentos</h4>
+          <p>Adicionais são somados ao preço base conforme a escolha do cliente.</p>
+          {form.optionGroups.map((group, index) => (
+            <div className="product-preview-group" key={index}>
+              <div><strong>{group.name.trim() || `Grupo ${index + 1}`}</strong><span>{group.required ? 'Obrigatório' : 'Opcional'}</span></div>
+              {group.options.filter(option => option.name.trim()).map((option, optionIndex) => (
+                <div className="product-preview-option" key={optionIndex}>
+                  <span>{option.name.trim()}</span>
+                  <span>{normalizeNonNegativeNumber(option.additionalPrice) > 0
+                    ? `+ ${formatCurrency(normalizeNonNegativeNumber(option.additionalPrice))}`
+                    : 'Sem acréscimo'}</span>
+                </div>
+              ))}
+              {!group.options.some(option => option.name.trim()) && <small>As opções aparecerão aqui.</small>}
+            </div>
+          ))}
+        </div>
+      )}
+      {!form.available && <p className="product-preview-note">Este produto ficará oculto para o cliente até ser disponibilizado.</p>}
+    </aside>
+  );
+}
+
 export function AdminDashboardPage() {
   const navigate = useNavigate();
-  const { adminName, logout } = useAdminAuth();
+  const { adminName, logout, role } = useAdminAuth();
+  const hasMenuAccess = canManageMenu(role);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const cropDragRef = useRef<CropDragState | null>(null);
   const [activeSection, setActiveSection] = useState<AdminSection>('orders');
@@ -618,6 +758,9 @@ export function AdminDashboardPage() {
   const [resolvingOrderId, setResolvingOrderId] = useState<string | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
   const [resolutionError, setResolutionError] = useState('');
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancellationError, setCancellationError] = useState('');
   const [ordersNotice, setOrdersNotice] = useState('');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -626,6 +769,12 @@ export function AdminDashboardPage() {
   const [menuForm, setMenuForm] = useState<MenuFormState>(EMPTY_MENU_FORM);
   const [imageCrop, setImageCrop] = useState<ImageCropState | null>(null);
   const [manualOrderForm, setManualOrderForm] = useState<ManualOrderFormState>(EMPTY_MANUAL_ORDER_FORM);
+  const [manualOrderSearch, setManualOrderSearch] = useState('');
+  const [manualOrderCategory, setManualOrderCategory] = useState<'Todos' | MenuCategory>('Todos');
+  const [customizingManualItem, setCustomizingManualItem] = useState<MenuItem | null>(null);
+  const [manualSingleSelections, setManualSingleSelections] = useState<ManualSingleSelections>({});
+  const [manualMultipleSelections, setManualMultipleSelections] = useState<ManualMultipleSelections>({});
+  const [manualItemObservation, setManualItemObservation] = useState('');
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [ordersError, setOrdersError] = useState('');
@@ -677,6 +826,15 @@ export function AdminDashboardPage() {
     loadMenu();
   }, [loadMenu, loadOrders]);
 
+  useEffect(() => {
+    if (!hasMenuAccess) {
+      setActiveSection('orders');
+      setIsMenuModalOpen(false);
+      setEditingItem(null);
+      setIsResetModalOpen(false);
+    }
+  }, [hasMenuAccess]);
+
   useEffect(() => (
     subscribeToRealtimeEvents(event => {
       if (event.type === 'orders:changed' || event.type === 'demo:reset' || event.type === 'connection:open') {
@@ -694,13 +852,20 @@ export function AdminDashboardPage() {
     [orders],
   );
 
-  const activeOrders = sortedOrders.filter(order => !isCompletedOrder(order));
-  const issueOrders = activeOrders.filter(hasOpenDeliveryIssue);
-  const historyOrders = sortedOrders.filter(isCompletedOrder);
-  const visibleOrders = orderView === 'history' ? historyOrders
+  const customerOrders = sortedOrders.filter(order => order.origin === 'cliente');
+  const manualOrders = sortedOrders.filter(order => order.origin === 'manual');
+  const activeOrders = customerOrders.filter(order => !isCompletedOrder(order));
+  const issueOrders = activeOrders.filter(order => hasOpenDeliveryIssue(order) || hasOpenCancellationRequest({ solicitacaoCancelamento: order.cancellationRequest }));
+  const historyOrders = customerOrders.filter(isCompletedOrder);
+  const visibleOrders = orderView === 'manual' ? manualOrders
+    : orderView === 'history' ? historyOrders
     : orderView === 'issues' ? issueOrders
-      : [...activeOrders].sort((first, second) => Number(hasOpenDeliveryIssue(second)) - Number(hasOpenDeliveryIssue(first)));
-  const orderViewTitle = orderView === 'history' ? 'Histórico de pedidos'
+      : [...activeOrders].sort((first, second) => (
+        Number(second.cancellationRequest?.status === 'pendente' || hasOpenDeliveryIssue(second)) -
+        Number(first.cancellationRequest?.status === 'pendente' || hasOpenDeliveryIssue(first))
+      ));
+  const orderViewTitle = orderView === 'manual' ? 'Pedidos manuais'
+    : orderView === 'history' ? 'Histórico de pedidos'
     : orderView === 'issues' ? 'Ocorrências de entrega' : 'Pedidos em atendimento';
 
   const sortedMenuItems = useMemo(
@@ -716,22 +881,40 @@ export function AdminDashboardPage() {
     [sortedMenuItems],
   );
 
+  const filteredManualMenuItems = useMemo(() => {
+    const search = normalizeText(manualOrderSearch);
+    return availableMenuItems.filter(item => (
+      (manualOrderCategory === 'Todos' || item.category === manualOrderCategory) &&
+      (!search || normalizeText(`${item.name} ${item.category}`).includes(search))
+    ));
+  }, [availableMenuItems, manualOrderCategory, manualOrderSearch]);
+
   const selectedManualOrderItems = useMemo(
     () => availableMenuItems
       .map(item => ({
         item,
-        quantity: manualOrderForm.quantities[item.id] ?? 0,
+        configuration: manualOrderForm.items[item.id],
       }))
-      .filter(({ quantity }) => quantity > 0),
-    [availableMenuItems, manualOrderForm.quantities],
+      .filter(({ configuration }) => configuration?.quantity > 0),
+    [availableMenuItems, manualOrderForm.items],
   );
 
   const manualOrderTotal = useMemo(
-    () => selectedManualOrderItems.reduce((sum, { item, quantity }) => (
-      sum + getDiscountedPrice(item) * quantity
+    () => selectedManualOrderItems.reduce((sum, { configuration }) => (
+      sum + configuration.unitPrice * configuration.quantity
     ), 0),
     [selectedManualOrderItems],
   );
+  const manualOrderItemCount = selectedManualOrderItems.reduce((sum, { configuration }) => sum + configuration.quantity, 0);
+  const pendingManualOptions = customizingManualItem
+    ? buildManualSelectedOptions(customizingManualItem.optionGroups, manualSingleSelections, manualMultipleSelections)
+    : [];
+  const pendingManualUnitPrice = customizingManualItem
+    ? calculateManualUnitPrice(getDiscountedPrice(customizingManualItem), pendingManualOptions)
+    : 0;
+  const isPendingManualCustomizationValid = customizingManualItem
+    ? isManualSelectionValid(customizingManualItem.optionGroups, manualSingleSelections, manualMultipleSelections)
+    : false;
 
   function handleLogout() {
     logout();
@@ -740,6 +923,9 @@ export function AdminDashboardPage() {
 
   function openManualOrderModal() {
     setManualOrderForm(EMPTY_MANUAL_ORDER_FORM);
+    setManualOrderSearch('');
+    setManualOrderCategory('Todos');
+    setCustomizingManualItem(null);
     setManualOrderError('');
     setIsManualOrderModalOpen(true);
   }
@@ -747,26 +933,90 @@ export function AdminDashboardPage() {
   function closeManualOrderModal() {
     setIsManualOrderModalOpen(false);
     setManualOrderForm(EMPTY_MANUAL_ORDER_FORM);
+    setCustomizingManualItem(null);
     setManualOrderError('');
   }
 
-  function updateManualOrderQuantity(itemId: string, change: number) {
+  function openManualItemCustomization(item: MenuItem) {
+    const existing = manualOrderForm.items[item.id];
+    const restored = restoreManualSelections(item.optionGroups, existing?.selectedOptions ?? []);
+    setCustomizingManualItem(item);
+    setManualSingleSelections(restored.single);
+    setManualMultipleSelections(restored.multiple);
+    setManualItemObservation(existing?.observation ?? '');
+  }
+
+  function selectManualSingleOption(groupIndex: number, optionIndex: number) {
+    setManualSingleSelections(current => ({ ...current, [String(groupIndex)]: optionIndex }));
+  }
+
+  function toggleManualMultipleOption(groupIndex: number, optionIndex: number) {
+    const groupKey = String(groupIndex);
+    const optionKey = String(optionIndex);
+    setManualMultipleSelections(current => {
+      const group = { ...(current[groupKey] ?? {}) };
+      if ((group[optionKey] ?? 0) > 0) delete group[optionKey];
+      else group[optionKey] = 1;
+      return { ...current, [groupKey]: group };
+    });
+  }
+
+  function changeManualOptionQuantity(groupIndex: number, optionIndex: number, change: number) {
+    const groupKey = String(groupIndex);
+    const optionKey = String(optionIndex);
+    setManualMultipleSelections(current => ({
+      ...current,
+      [groupKey]: {
+        ...(current[groupKey] ?? {}),
+        [optionKey]: Math.max(1, (current[groupKey]?.[optionKey] ?? 1) + change),
+      },
+    }));
+  }
+
+  function updateManualOrderQuantity(item: MenuItem, change: number) {
+    const currentItem = manualOrderForm.items[item.id];
+    if (change > 0 && item.itemType === 'com_acompanhamento' && !currentItem) {
+      openManualItemCustomization(item);
+      return;
+    }
     setManualOrderForm(current => {
-      const currentQuantity = current.quantities[itemId] ?? 0;
+      const currentConfiguration = current.items[item.id];
+      const currentQuantity = currentConfiguration?.quantity ?? 0;
       const nextQuantity = Math.max(0, currentQuantity + change);
-      const nextQuantities = { ...current.quantities };
+      const nextItems = { ...current.items };
 
       if (nextQuantity === 0) {
-        delete nextQuantities[itemId];
+        delete nextItems[item.id];
       } else {
-        nextQuantities[itemId] = nextQuantity;
+        nextItems[item.id] = currentConfiguration
+          ? { ...currentConfiguration, quantity: nextQuantity }
+          : { observation: '', quantity: nextQuantity, selectedOptions: [], unitPrice: getDiscountedPrice(item) };
       }
 
       return {
         ...current,
-        quantities: nextQuantities,
+        items: nextItems,
       };
     });
+  }
+
+  function saveManualItemCustomization() {
+    if (!customizingManualItem || !isManualSelectionValid(customizingManualItem.optionGroups, manualSingleSelections, manualMultipleSelections)) return;
+    const selectedOptions = buildManualSelectedOptions(customizingManualItem.optionGroups, manualSingleSelections, manualMultipleSelections);
+    const unitPrice = calculateManualUnitPrice(getDiscountedPrice(customizingManualItem), selectedOptions);
+    setManualOrderForm(current => ({
+      ...current,
+      items: {
+        ...current.items,
+        [customizingManualItem.id]: {
+          observation: manualItemObservation.trim(),
+          quantity: current.items[customizingManualItem.id]?.quantity ?? 1,
+          selectedOptions,
+          unitPrice,
+        },
+      },
+    }));
+    setCustomizingManualItem(null);
   }
 
   async function handleManualOrderSubmit(event: FormEvent<HTMLFormElement>) {
@@ -788,20 +1038,25 @@ export function AdminDashboardPage() {
         mesa: {
           numero: Math.min(99, Math.max(1, Math.round(Number(manualOrderForm.tableNumber) || 1))),
         },
-        itens: selectedManualOrderItems.map(({ item, quantity }) => ({
+        itens: selectedManualOrderItems.map(({ item, configuration }) => ({
           itemId: item.id,
           nome: item.name,
           precoUnitario: getDiscountedPrice(item),
-          precoUnitarioFinal: getDiscountedPrice(item),
-          quantidade: quantity,
+          precoUnitarioFinal: configuration.unitPrice,
+          quantidade: configuration.quantity,
+          observacao: configuration.observation,
+          opcoesSelecionadas: configuration.selectedOptions,
         })),
+        observacaoGeral: manualOrderForm.generalObservation.trim(),
         total: roundCurrency(manualOrderTotal),
         formaPagamento: null,
+        origemPedido: 'manual',
       };
       const savedOrder = await createOrder(payload);
       const mappedOrder = mapApiOrder(savedOrder);
 
       setOrders(currentOrders => [mappedOrder, ...currentOrders]);
+      setOrderView('manual');
       closeManualOrderModal();
     } catch (error) {
       console.error(error);
@@ -833,6 +1088,51 @@ export function AdminDashboardPage() {
     }
   }
 
+  async function handleCancelOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!cancellingOrder || cancellationReason.trim().length < 5) return;
+    setBusyOrderIds(current => new Set(current).add(cancellingOrder.id));
+    setCancellationError('');
+    try {
+      const updated = await cancelOrder(cancellingOrder.id, cancellationReason.trim(), adminName);
+      setOrders(current => current.map(order => order.id === cancellingOrder.id ? mapApiOrder(updated) : order));
+      setOrdersNotice(`Pedido ${getDisplayOrderId(cancellingOrder.id)} cancelado. Reembolso simulado registrado.`);
+      setCancellingOrder(null);
+      setCancellationReason('');
+    } catch (error) {
+      setCancellationError(error instanceof Error ? error.message : 'Não foi possível cancelar o pedido.');
+      await loadOrders({ silent: true });
+    } finally {
+      setBusyOrderIds(current => {
+        const next = new Set(current);
+        if (cancellingOrder) next.delete(cancellingOrder.id);
+        return next;
+      });
+    }
+  }
+
+  async function handleCancellationReview(order: Order, decision: 'aprovada' | 'recusada') {
+    if (busyOrderIds.has(order.id)) return;
+    setBusyOrderIds(current => new Set(current).add(order.id));
+    setOrdersError('');
+    try {
+      const updated = await reviewCancellationRequest(order.id, decision, adminName);
+      setOrders(current => current.map(item => item.id === order.id ? mapApiOrder(updated) : item));
+      setOrdersNotice(decision === 'aprovada'
+        ? `Cancelamento do ${getDisplayOrderId(order.id)} aprovado e reembolso simulado registrado.`
+        : `Cancelamento do ${getDisplayOrderId(order.id)} recusado. O pedido continua em preparo.`);
+    } catch (error) {
+      setOrdersError(error instanceof Error ? error.message : 'Não foi possível revisar a solicitação.');
+      await loadOrders({ silent: true });
+    } finally {
+      setBusyOrderIds(current => {
+        const next = new Set(current);
+        next.delete(order.id);
+        return next;
+      });
+    }
+  }
+
   async function handleResolveDelivery(event: FormEvent<HTMLFormElement>, orderId: string) {
     event.preventDefault();
     if (!resolutionNote.trim() || busyOrderIds.has(orderId)) return;
@@ -858,12 +1158,14 @@ export function AdminDashboardPage() {
   }
 
   function openCreateItemModal() {
+    if (!hasMenuAccess) return;
     setEditingItem(null);
     setMenuForm(EMPTY_MENU_FORM);
     setIsMenuModalOpen(true);
   }
 
   function openEditItemModal(item: MenuItem) {
+    if (!hasMenuAccess) return;
     setEditingItem(item);
     setMenuForm(createFormFromItem(item));
     setIsMenuModalOpen(true);
@@ -1130,6 +1432,7 @@ export function AdminDashboardPage() {
   }
 
   async function removeMenuItem(item: MenuItem) {
+    if (!hasMenuAccess) return;
     const shouldRemove = window.confirm(`Remover ${item.name} do cardápio?`);
 
     if (!shouldRemove) {
@@ -1148,6 +1451,7 @@ export function AdminDashboardPage() {
 
   async function handleMenuFormSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!hasMenuAccess) return;
     setIsSavingMenuItem(true);
 
     try {
@@ -1175,6 +1479,7 @@ export function AdminDashboardPage() {
   }
 
   async function handleConfirmResetDemo() {
+    if (!hasMenuAccess) return;
     setIsResetting(true);
     setResetError('');
 
@@ -1202,10 +1507,15 @@ export function AdminDashboardPage() {
         </div>
 
         <div className="topbar-actions">
-          <button className="ghost-button reset-demo-button" onClick={() => setIsResetModalOpen(true)} type="button">
-            <RefreshCcw size={18} aria-hidden="true" />
-            Resetar Demo
-          </button>
+          <span className={`dashboard-role-chip is-${role}`}>
+            {role === 'administrador' ? 'Administrador' : 'Funcionário'}
+          </span>
+          {hasMenuAccess && (
+            <button className="ghost-button reset-demo-button" onClick={() => setIsResetModalOpen(true)} type="button">
+              <RefreshCcw size={18} aria-hidden="true" />
+              Resetar Demo
+            </button>
+          )}
 
           <button className="ghost-button" onClick={handleLogout} type="button">
             <LogOut size={18} aria-hidden="true" />
@@ -1229,19 +1539,21 @@ export function AdminDashboardPage() {
             >
               <ClipboardList size={19} aria-hidden="true" />
               Fila de Pedidos
-              <span className="sidebar-count">{activeOrders.length}</span>
+              <span className="sidebar-count">{activeOrders.length + manualOrders.filter(order => !isCompletedOrder(order)).length}</span>
             </button>
 
-            <button
-              className={activeSection === 'menu' ? 'section-link is-active' : 'section-link'}
-              onClick={() => setActiveSection('menu')}
-              type="button"
-            >
-              <Utensils size={19} aria-hidden="true" />
-              Cardápio
-            </button>
+            {hasMenuAccess && (
+              <button
+                className={activeSection === 'menu' ? 'section-link is-active' : 'section-link'}
+                onClick={() => setActiveSection('menu')}
+                type="button"
+              >
+                <Utensils size={19} aria-hidden="true" />
+                Cardápio
+              </button>
+            )}
           </nav>
-          <div className="sidebar-team"><span>Equipe conectada</span><strong>{adminName}</strong></div>
+          <div className="sidebar-team"><span>{role === 'administrador' ? 'Administrador conectado' : 'Funcionário conectado'}</span><strong>{adminName}</strong></div>
         </aside>
 
         <section className="dashboard-content">
@@ -1251,7 +1563,7 @@ export function AdminDashboardPage() {
                 <div>
                   <p className="login-kicker">OPERAÇÃO / PEDIDOS</p>
                   <h1 id="orders-title">{orderViewTitle}</h1>
-                  <p className="orders-intro">{orderView === 'history' ? 'Entregas finalizadas e registros de atendimento.' : orderView === 'issues' ? 'Atenção aos clientes que precisam de uma resposta.' : 'Organize o preparo e acompanhe cada entrega.'}</p>
+                  <p className="orders-intro">{orderView === 'manual' ? 'Acompanhe separadamente os pedidos lançados pela equipe.' : orderView === 'history' ? 'Entregas finalizadas e registros de atendimento.' : orderView === 'issues' ? 'Atenção aos clientes que precisam de uma resposta.' : 'Organize o preparo e acompanhe cada entrega.'}</p>
                 </div>
                 <div className="section-actions">
                   <button className="add-item-button" onClick={openManualOrderModal} type="button">
@@ -1279,6 +1591,7 @@ export function AdminDashboardPage() {
                   ['active', 'Em atendimento', activeOrders.length],
                   ['issues', 'Ocorrências', issueOrders.length],
                   ['history', 'Histórico', historyOrders.length],
+                  ['manual', 'Pedidos manuais', manualOrders.length],
                 ] as const).map(([view, label, count]) => (
                   <button
                     key={view}
@@ -1293,8 +1606,8 @@ export function AdminDashboardPage() {
                 ))}
               </div>
               <div className="orders-list-heading">
-                <p>{orderView === 'history' ? 'Concluídos' : orderView === 'issues' ? 'Precisam de atenção' : 'Fila de atendimento'} <span>· {visibleOrders.length} {visibleOrders.length === 1 ? 'pedido' : 'pedidos'}</span></p>
-                <span>{orderView === 'history' ? 'Abra um pedido para ver detalhes' : 'Ocorrências aparecem primeiro'}</span>
+                <p>{orderView === 'manual' ? 'Lançados pela equipe' : orderView === 'history' ? 'Concluídos' : orderView === 'issues' ? 'Precisam de atenção' : 'Fila de atendimento'} <span>· {visibleOrders.length} {visibleOrders.length === 1 ? 'pedido' : 'pedidos'}</span></p>
+                <span>{orderView === 'manual' ? 'Fluxo separado dos pedidos do cliente' : orderView === 'history' ? 'Abra um pedido para ver detalhes' : 'Ocorrências aparecem primeiro'}</span>
               </div>
               {!!ordersNotice && <p className="order-success-notice" role="status">{ordersNotice}</p>}
               {!!ordersError && (
@@ -1309,12 +1622,14 @@ export function AdminDashboardPage() {
               {isLoadingOrders && orders.length === 0 ? (
                 <div className="empty-panel">Carregando pedidos...</div>
               ) : visibleOrders.length === 0 ? (
-                <div className="empty-panel orders-empty"><CheckCircle2 size={30} aria-hidden="true" /><strong>{orderView === 'history' ? 'O histórico começa com a primeira entrega' : orderView === 'issues' ? 'Tudo em ordem por aqui' : 'A fila está em dia'}</strong><span>{orderView === 'history' ? 'Pedidos concluídos aparecerão aqui para consulta.' : orderView === 'issues' ? 'Nenhuma ocorrência pendente.' : 'Novos pedidos aparecerão aqui para iniciar o preparo.'}</span></div>
+                <div className="empty-panel orders-empty"><CheckCircle2 size={30} aria-hidden="true" /><strong>{orderView === 'manual' ? 'Nenhum pedido manual' : orderView === 'history' ? 'O histórico começa com a primeira entrega' : orderView === 'issues' ? 'Tudo em ordem por aqui' : 'A fila está em dia'}</strong><span>{orderView === 'manual' ? 'Pedidos adicionados pela equipe aparecerão somente nesta aba.' : orderView === 'history' ? 'Pedidos concluídos aparecerão aqui para consulta.' : orderView === 'issues' ? 'Nenhuma ocorrência pendente.' : 'Novos pedidos aparecerão aqui para iniciar o preparo.'}</span></div>
               ) : (
                 <div className={orderView === 'history' ? 'orders-grid orders-history' : 'orders-grid'}>
                   {visibleOrders.map((order) => {
                     const nextAction = getNextOrderAction(order.status);
                     const hasIssue = hasOpenDeliveryIssue(order);
+                    const hasCancellationRequest = order.cancellationRequest?.status === 'pendente';
+                    const needsAttention = hasIssue || hasCancellationRequest;
                     const isUpdatingStatus = busyOrderIds.has(order.id);
 
                     if (orderView === 'history') {
@@ -1327,27 +1642,39 @@ export function AdminDashboardPage() {
                             <ChevronDown className="history-chevron" size={18} aria-hidden="true" />
                           </summary>
                           <div className="history-order-body">
+                            {order.cancelamento && (
+                              <div className="cancellation-summary">
+                                <strong>Cancelado {order.cancelamento.origem === 'cliente' ? 'pelo cliente' : 'pela equipe'}</strong>
+                                {order.cancelamento.motivo && <span>{order.cancelamento.motivo}</span>}
+                                {order.cancelamento.atendente && <small>Responsável: {order.cancelamento.atendente}</small>}
+                                <small>{order.reembolso?.status === 'concluido_simulado'
+                                  ? `Reembolso simulado concluído: ${formatCurrency(order.reembolso.valor)} via ${order.reembolso.formaPagamento === 'pix' ? 'PIX' : 'cartão'}. Nenhum valor real foi movimentado.`
+                                  : 'Sem reembolso: o pedido não possuía pagamento registrado.'}</small>
+                              </div>
+                            )}
                             <span className="ready-note">{order.resolucaoEntrega ? 'Ocorrência resolvida' : 'Entrega confirmada'}</span>
                             <DeliveryResolution order={order} />
+                            <GeneralOrderObservation order={order} />
                             <OrderItems order={order} />
+                            <OrderTimeline order={order} />
                           </div>
                         </details>
                       );
                     }
 
                     return (
-                      <article className={hasIssue ? 'order-card order-card-issue' : 'order-card'} key={order.id}>
+                      <article className={needsAttention ? 'order-card order-card-issue' : 'order-card'} key={order.id}>
                         <div className="order-card-header">
                           <div className="order-customer-heading">
                             <div className="table-marker"><span>MESA</span><strong>{order.tableNumber ? String(order.tableNumber).padStart(2, '0') : '—'}</strong></div>
                             <div>
-                            <span className="order-id">{getDisplayOrderId(order.id)}</span>
+                            <span className="order-id">{getDisplayOrderId(order.id)}{order.origin === 'manual' && <span className="manual-order-tag">Pedido manual</span>}</span>
                             <h2>{order.customerName}</h2>
                             <div className="order-time"><Clock size={13} aria-hidden="true" /><span>{formatElapsedTime(order.createdAt)}</span></div>
                             </div>
                           </div>
                           <span className={`status-badge ${hasIssue ? 'status-issue' : STATUS_STYLES[order.status]}`}>
-                            {hasIssue ? 'Entrega contestada' : isCompletedOrder(order) ? 'Concluído' : STATUS_LABELS[order.status]}
+                            {hasCancellationRequest ? 'Cancelamento solicitado' : hasIssue ? 'Entrega contestada' : order.status === 'cancelado' ? 'Cancelado' : isCompletedOrder(order) ? 'Concluído' : STATUS_LABELS[order.status]}
                           </span>
                         </div>
 
@@ -1357,12 +1684,33 @@ export function AdminDashboardPage() {
                             <span>Cliente informou que não recebeu. Verifique a entrega e registre como o problema foi resolvido.</span>
                           </div>
                         )}
+                        {hasCancellationRequest && (
+                          <div className="cancellation-request-notice">
+                            <AlertCircle size={19} aria-hidden="true" />
+                            <div>
+                              <strong>Cliente solicitou o cancelamento</strong>
+                              <span>{order.cancellationRequest?.motivo}</span>
+                              <small>O pedido continua em preparo até sua decisão.</small>
+                            </div>
+                          </div>
+                        )}
                         <DeliveryResolution order={order} />
+                        <GeneralOrderObservation order={order} />
                         <OrderItems order={order} />
+                        <OrderTimeline order={order} />
 
                         <div className="order-footer">
                           <div className="order-total-block"><span>Total do pedido</span><strong>{formatCurrency(order.total)}</strong></div>
-                          {hasIssue ? (
+                          {hasCancellationRequest ? (
+                            <div className="cancellation-review-actions">
+                              <button className="secondary-button" type="button" disabled={isUpdatingStatus}
+                                onClick={() => void handleCancellationReview(order, 'recusada')}>Recusar</button>
+                              <button className="compact-action" type="button" disabled={isUpdatingStatus}
+                                onClick={() => void handleCancellationReview(order, 'aprovada')}>
+                                {isUpdatingStatus ? 'Processando...' : 'Aprovar e cancelar'}
+                              </button>
+                            </div>
+                          ) : hasIssue ? (
                             <button className="compact-action" type="button" disabled={isUpdatingStatus} onClick={() => {
                               setResolvingOrderId(order.id);
                               setResolutionNote('');
@@ -1381,6 +1729,12 @@ export function AdminDashboardPage() {
                             </button>
                           ) : (
                             <span className="ready-note">{order.resolucaoEntrega ? 'Ocorrência resolvida' : order.confirmacaoEntrega === 'confirmado' ? 'Entrega confirmada' : 'Aguardando confirmação'}</span>
+                          )}
+                          {!hasIssue && !hasCancellationRequest && order.status !== 'entregue' && order.status !== 'cancelado' && (
+                            <button className="cancel-order-button" type="button" disabled={isUpdatingStatus}
+                              onClick={() => { setCancellingOrder(order); setCancellationReason(''); setCancellationError(''); setOrdersNotice(''); }}>
+                              Cancelar pedido
+                            </button>
                           )}
                         </div>
                         {hasIssue && resolvingOrderId === order.id && (
@@ -1406,7 +1760,7 @@ export function AdminDashboardPage() {
                 </div>
               )}
             </section>
-          ) : (
+          ) : hasMenuAccess ? (
             <section aria-labelledby="menu-title">
               <div className="section-header">
                 <div>
@@ -1507,7 +1861,7 @@ export function AdminDashboardPage() {
                 </div>
               )}
             </section>
-          )}
+          ) : null}
         </section>
       </div>
 
@@ -1567,20 +1921,44 @@ export function AdminDashboardPage() {
                 </label>
               </div>
 
+              <div className="manual-order-toolbar">
+                <label className="manual-order-search">
+                  <Search size={16} aria-hidden="true" />
+                  <input value={manualOrderSearch} onChange={event => setManualOrderSearch(event.target.value)} placeholder="Buscar no cardápio" type="search" />
+                </label>
+                <div className="manual-order-categories" role="group" aria-label="Filtrar por categoria">
+                  {(['Todos', ...MENU_CATEGORIES] as const).map(category => (
+                    <button key={category} type="button" aria-pressed={manualOrderCategory === category}
+                      className={manualOrderCategory === category ? 'is-active' : ''}
+                      onClick={() => setManualOrderCategory(category)}>{category}</button>
+                  ))}
+                </div>
+              </div>
+
               <div className="manual-order-menu">
                 {availableMenuItems.length === 0 ? (
                   <div className="empty-panel">Nenhum item disponível no cardápio.</div>
+                ) : filteredManualMenuItems.length === 0 ? (
+                  <div className="empty-panel">Nenhum item encontrado para este filtro.</div>
                 ) : (
-                  availableMenuItems.map(item => {
-                    const quantity = manualOrderForm.quantities[item.id] ?? 0;
+                  filteredManualMenuItems.map(item => {
+                    const configuration = manualOrderForm.items[item.id];
+                    const quantity = configuration?.quantity ?? 0;
+                    const customizable = item.itemType === 'com_acompanhamento';
 
                     return (
-                      <div className="manual-order-item" key={item.id}>
+                      <div className={quantity > 0 ? 'manual-order-item is-selected' : 'manual-order-item'} key={item.id}>
                         <img src={item.imageSrc} alt="" />
                         <div className="manual-order-item-info">
                           <strong>{item.name}</strong>
-                          <span>{item.category}</span>
-                          <small>{formatCurrency(getDiscountedPrice(item))}</small>
+                          <span>{item.category}{customizable && <em>Personalizável</em>}</span>
+                          <small>{customizable ? `A partir de ${formatCurrency(getDiscountedPrice(item))}` : formatCurrency(getDiscountedPrice(item))}</small>
+                          {!!configuration?.selectedOptions.length && (
+                            <p>{configuration.selectedOptions.map(option => `${option.quantidade > 1 ? `${option.quantidade}× ` : ''}${option.opcaoNome}`).join(' · ')}</p>
+                          )}
+                          {configuration && customizable && (
+                            <button className="manual-edit-options" type="button" onClick={() => openManualItemCustomization(item)}>Editar escolhas</button>
+                          )}
                         </div>
 
                         <div className="manual-order-quantity">
@@ -1588,7 +1966,7 @@ export function AdminDashboardPage() {
                             aria-label={`Remover ${item.name}`}
                             className="icon-action"
                             disabled={quantity === 0}
-                            onClick={() => updateManualOrderQuantity(item.id, -1)}
+                            onClick={() => updateManualOrderQuantity(item, -1)}
                             type="button"
                           >
                             -
@@ -1597,7 +1975,7 @@ export function AdminDashboardPage() {
                           <button
                             aria-label={`Adicionar ${item.name}`}
                             className="icon-action"
-                            onClick={() => updateManualOrderQuantity(item.id, 1)}
+                            onClick={() => updateManualOrderQuantity(item, 1)}
                             type="button"
                           >
                             +
@@ -1609,11 +1987,23 @@ export function AdminDashboardPage() {
                 )}
               </div>
 
+              <label className="manual-general-observation">
+                <span><MessageSquare size={14} aria-hidden="true" /> Observação geral <small>Opcional</small></span>
+                <textarea
+                  maxLength={500}
+                  onChange={event => setManualOrderForm(current => ({ ...current, generalObservation: event.target.value }))}
+                  placeholder="Ex.: cliente aguarda no balcão, entregar talheres junto ao pedido..."
+                  rows={2}
+                  value={manualOrderForm.generalObservation}
+                />
+                <small>Esta observação vale para o pedido inteiro e ficará visível para a equipe.</small>
+              </label>
+
               <div className="manual-order-summary">
                 <span>
-                  {selectedManualOrderItems.length === 1
+                  {manualOrderItemCount === 1
                     ? '1 item selecionado'
-                    : `${selectedManualOrderItems.length} itens selecionados`}
+                    : `${manualOrderItemCount} itens selecionados`}
                 </span>
                 <strong>{formatCurrency(manualOrderTotal)}</strong>
               </div>
@@ -1638,13 +2028,90 @@ export function AdminDashboardPage() {
         </div>
       )}
 
+      {customizingManualItem && (
+        <div className="modal-backdrop manual-customization-backdrop" role="presentation">
+          <section className="menu-modal manual-customization-modal" aria-labelledby="manual-customization-title" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div className="manual-customization-heading">
+                <img src={customizingManualItem.imageSrc} alt="" />
+                <div>
+                  <p className="login-kicker">Personalizar item</p>
+                  <h2 id="manual-customization-title">{customizingManualItem.name}</h2>
+                  <span>A partir de {formatCurrency(getDiscountedPrice(customizingManualItem))}</span>
+                </div>
+              </div>
+              <button aria-label="Fechar personalização" className="icon-action" onClick={() => setCustomizingManualItem(null)} type="button">
+                <X size={19} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="manual-customization-content">
+              {customizingManualItem.optionGroups.map((group, groupIndex) => {
+                const groupKey = String(groupIndex);
+                return (
+                  <fieldset className="manual-option-group" key={`${group.nome}-${groupIndex}`}>
+                    <legend>
+                      <span>{group.nome}</span>
+                      <small>{group.obrigatorio ? 'Obrigatório' : 'Opcional'} · {group.tipo === 'unica' ? 'Escolha uma opção' : 'Escolha quantas quiser'}</small>
+                    </legend>
+                    <div className="manual-option-list">
+                      {group.opcoes.map((option, optionIndex) => {
+                        const optionKey = String(optionIndex);
+                        const quantity = manualMultipleSelections[groupKey]?.[optionKey] ?? 0;
+                        const selected = group.tipo === 'unica'
+                          ? manualSingleSelections[groupKey] === optionIndex
+                          : quantity > 0;
+                        return (
+                          <div className={selected ? 'manual-option-row is-selected' : 'manual-option-row'} key={`${option.nome}-${optionIndex}`}>
+                            <button type="button" role={group.tipo === 'unica' ? 'radio' : 'checkbox'} aria-checked={selected}
+                              onClick={() => group.tipo === 'unica'
+                                ? selectManualSingleOption(groupIndex, optionIndex)
+                                : toggleManualMultipleOption(groupIndex, optionIndex)}>
+                              <span className="manual-option-marker">{selected && <CheckCircle2 size={15} aria-hidden="true" />}</span>
+                              <strong>{option.nome}</strong>
+                              <small>{option.precoAdicional > 0 ? `+ ${formatCurrency(option.precoAdicional)}` : 'Sem acréscimo'}</small>
+                            </button>
+                            {group.tipo === 'multipla' && group.permiteQuantidade && selected && (
+                              <div className="manual-option-quantity">
+                                <button type="button" aria-label={`Diminuir ${option.nome}`} onClick={() => changeManualOptionQuantity(groupIndex, optionIndex, -1)}>−</button>
+                                <strong>{quantity}</strong>
+                                <button type="button" aria-label={`Aumentar ${option.nome}`} onClick={() => changeManualOptionQuantity(groupIndex, optionIndex, 1)}>+</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                );
+              })}
+              <label className="form-field manual-observation-field">
+                <span>Observação <small>Opcional</small></span>
+                <textarea rows={3} maxLength={300} value={manualItemObservation}
+                  onChange={event => setManualItemObservation(event.target.value)}
+                  placeholder="Ex.: sem gelo, molho separado..." />
+              </label>
+            </div>
+
+            <div className="manual-customization-footer">
+              <div><span>Total do item</span><strong>{formatCurrency(pendingManualUnitPrice)}</strong></div>
+              <button className="secondary-button" type="button" onClick={() => setCustomizingManualItem(null)}>Voltar</button>
+              <button className="primary-button modal-save" type="button" disabled={!isPendingManualCustomizationValid} onClick={saveManualItemCustomization}>
+                Confirmar escolhas
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {isMenuModalOpen && (
         <div className="modal-backdrop" role="presentation">
-          <section className="menu-modal" aria-labelledby="menu-modal-title" role="dialog" aria-modal="true">
+          <section className="menu-modal item-editor-modal" aria-labelledby="menu-modal-title" role="dialog" aria-modal="true">
             <div className="modal-header">
               <div>
                 <p className="login-kicker">Cardápio</p>
                 <h2 id="menu-modal-title">{editingItem ? 'Editar item' : 'Adicionar item'}</h2>
+                <p className="item-editor-description">Defina como o produto aparece no cardápio.</p>
               </div>
               <button
                 aria-label="Fechar formulário"
@@ -1657,293 +2124,312 @@ export function AdminDashboardPage() {
             </div>
 
             <form className="menu-form" onSubmit={handleMenuFormSubmit}>
-              <label className="form-field">
-                <span>Nome</span>
-                <input
-                  onChange={(event) => setMenuForm((current) => ({ ...current, name: event.target.value }))}
-                  required
-                  type="text"
-                  value={menuForm.name}
-                />
-              </label>
+              <div className="item-editor-body">
+                <div className="item-editor-fields">
+                  <div className="item-editor-section-heading">Informações do produto</div>
+                  <label className="form-field">
+                    <span>Nome</span>
+                    <input
+                      onChange={(event) => setMenuForm((current) => ({ ...current, name: event.target.value }))}
+                      required
+                      placeholder="Ex.: Hambúrguer artesanal"
+                      type="text"
+                      value={menuForm.name}
+                    />
+                  </label>
 
-              <div className="form-row">
-                <label className="form-field">
-                  <span>Preço</span>
-                  <input
-                    min="0"
-                    onChange={(event) => setMenuForm((current) => ({ ...current, price: event.target.value }))}
-                    required
-                    step="0.01"
-                    type="number"
-                    value={menuForm.price}
-                  />
-                </label>
+                  <div className="form-row">
+                    <label className="form-field">
+                      <span>Preço (R$)</span>
+                      <input
+                        min="0"
+                        placeholder="0,00"
+                        onChange={(event) => setMenuForm((current) => ({ ...current, price: event.target.value }))}
+                        required
+                        step="0.01"
+                        type="number"
+                        value={menuForm.price}
+                      />
+                    </label>
 
-                <label className="form-field">
-                  <span>Categoria</span>
-                  <select
-                    onChange={(event) => (
-                      setMenuForm((current) => ({
-                        ...current,
-                        category: event.target.value as MenuCategory,
-                      }))
-                    )}
-                    value={menuForm.category}
-                  >
-                    {MENU_CATEGORIES.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <div className="item-type-control" role="group" aria-label="Tipo do item">
-                <button
-                  className={menuForm.itemType === 'simples' ? 'item-type-button is-active' : 'item-type-button'}
-                  onClick={() => updateMenuItemType('simples')}
-                  type="button"
-                >
-                  Simples
-                </button>
-                <button
-                  className={menuForm.itemType === 'com_acompanhamento' ? 'item-type-button is-active' : 'item-type-button'}
-                  onClick={() => updateMenuItemType('com_acompanhamento')}
-                  type="button"
-                >
-                  Com acompanhamento
-                </button>
-              </div>
-
-              <label className="form-field">
-                <span>Descrição</span>
-                <textarea
-                  onChange={(event) => (
-                    setMenuForm((current) => ({ ...current, description: event.target.value }))
-                  )}
-                  rows={3}
-                  value={menuForm.description}
-                />
-              </label>
-
-              <div className="image-picker">
-                <div className="image-picker-preview">
-                  <img src={getMenuFormImageSrc(menuForm.image, menuForm.name)} alt="" />
-                </div>
-
-                <div className="image-picker-content">
-                  <div>
-                    <strong>Imagem do item</strong>
-                    <span>
-                      {menuForm.image
-                        ? 'Imagem personalizada selecionada'
-                        : 'Escolha uma foto e ajuste o recorte'}
-                    </span>
+                    <label className="form-field">
+                      <span>Categoria</span>
+                      <select
+                        onChange={(event) => (
+                          setMenuForm((current) => ({
+                            ...current,
+                            category: event.target.value as MenuCategory,
+                          }))
+                        )}
+                        value={menuForm.category}
+                      >
+                        {MENU_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
-                  <div className="image-picker-actions">
-                    <button className="secondary-button image-picker-button" onClick={openImageFilePicker} type="button">
-                      <Upload size={17} aria-hidden="true" />
-                      Escolher imagem
+                  <div className="item-type-control" role="group" aria-label="Tipo do item">
+                    <button
+                      aria-pressed={menuForm.itemType === 'simples'}
+                      className={menuForm.itemType === 'simples' ? 'item-type-button is-active' : 'item-type-button'}
+                      onClick={() => updateMenuItemType('simples')}
+                      type="button"
+                    >
+                      <strong>Simples</strong>
+                      <span>Sem opções adicionais</span>
                     </button>
-
-                    {menuForm.image && (
-                      <button className="secondary-button image-picker-button" onClick={clearMenuImage} type="button">
-                        <RefreshCcw size={16} aria-hidden="true" />
-                        Usar padrão
-                      </button>
-                    )}
+                    <button
+                      aria-pressed={menuForm.itemType === 'com_acompanhamento'}
+                      className={menuForm.itemType === 'com_acompanhamento' ? 'item-type-button is-active' : 'item-type-button'}
+                      onClick={() => updateMenuItemType('com_acompanhamento')}
+                      type="button"
+                    >
+                      <strong>Com acompanhamento</strong>
+                      <span>Sabores, tamanhos e extras</span>
+                    </button>
                   </div>
 
-                  <input
-                    accept="image/png,image/jpeg,image/webp"
-                    className="visually-hidden"
-                    onChange={handleImageFileChange}
-                    ref={imageInputRef}
-                    type="file"
-                  />
-                </div>
-              </div>
+                  <label className="form-field">
+                    <span>Descrição</span>
+                    <textarea
+                      placeholder="Conte o que vem no item e seus principais ingredientes."
+                      onChange={(event) => (
+                        setMenuForm((current) => ({ ...current, description: event.target.value }))
+                      )}
+                      rows={3}
+                      value={menuForm.description}
+                    />
+                  </label>
 
-              <div className="discount-control">
-                <label>
-                  <input
-                    checked={menuForm.hasDiscount}
-                    onChange={(event) => (
-                      setMenuForm((current) => ({
-                        ...current,
-                        hasDiscount: event.target.checked,
-                      }))
-                    )}
-                    type="checkbox"
-                  />
-                  Aplicar desconto
-                </label>
-
-                <input
-                  aria-label="Percentual de desconto"
-                  disabled={!menuForm.hasDiscount}
-                  max="90"
-                  min="0"
-                  onChange={(event) => (
-                    setMenuForm((current) => ({ ...current, discountPercent: event.target.value }))
-                  )}
-                  placeholder="Percentual"
-                  type="number"
-                  value={menuForm.discountPercent}
-                />
-              </div>
-
-              <label className="availability-control">
-                <input
-                  checked={menuForm.available}
-                  onChange={(event) => (
-                    setMenuForm((current) => ({ ...current, available: event.target.checked }))
-                  )}
-                  type="checkbox"
-                />
-                Disponível para pedidos
-              </label>
-
-              {menuForm.itemType === 'com_acompanhamento' && (
-                <section className="option-groups-builder" aria-label="Grupos de opções">
-                  <div className="option-groups-header">
-                    <div>
-                      <strong>Grupos de opções</strong>
-                      <span>{menuForm.optionGroups.length} grupo(s)</span>
+                  <div className="image-picker">
+                    <div className="image-picker-preview">
+                      <img src={getMenuFormImageSrc(menuForm.image, menuForm.name)} alt="" />
                     </div>
-                    <button className="secondary-button option-add-button" onClick={addOptionGroup} type="button">
-                      <Plus size={17} aria-hidden="true" />
-                      Adicionar grupo
-                    </button>
+
+                    <div className="image-picker-content">
+                      <div>
+                        <strong>Imagem do item</strong>
+                        <span>
+                        {menuForm.image && menuForm.image !== 'default-food.png'
+                            ? 'Imagem personalizada selecionada'
+                            : 'Escolha uma foto e ajuste o recorte'}
+                        </span>
+                      </div>
+
+                      <div className="image-picker-actions">
+                        <button className="secondary-button image-picker-button" onClick={openImageFilePicker} type="button">
+                          <Upload size={17} aria-hidden="true" />
+                          Escolher imagem
+                        </button>
+
+                        {menuForm.image && (
+                          <button className="secondary-button image-picker-button" onClick={clearMenuImage} type="button">
+                            <RefreshCcw size={16} aria-hidden="true" />
+                            Usar padrão
+                          </button>
+                        )}
+                      </div>
+
+                      <input
+                        accept="image/png,image/jpeg,image/webp"
+                        className="visually-hidden"
+                        onChange={handleImageFileChange}
+                        ref={imageInputRef}
+                        type="file"
+                      />
+                    </div>
                   </div>
 
-                  <div className="option-groups-list">
-                    {menuForm.optionGroups.map((group, groupIndex) => (
-                      <article className="option-group-panel" key={`option-group-${groupIndex}`}>
-                        <div className="option-group-panel-header">
-                          <strong>Grupo {groupIndex + 1}</strong>
-                          <button
-                            aria-label={`Remover grupo ${groupIndex + 1}`}
-                            className="icon-action is-danger"
-                            disabled={menuForm.optionGroups.length === 1}
-                            onClick={() => removeOptionGroup(groupIndex)}
-                            type="button"
-                          >
-                            <Trash2 size={17} aria-hidden="true" />
-                          </button>
+                  <div className="discount-control">
+                    <label>
+                      <input
+                        checked={menuForm.hasDiscount}
+                        onChange={(event) => (
+                          setMenuForm((current) => ({
+                            ...current,
+                            hasDiscount: event.target.checked,
+                          }))
+                        )}
+                        type="checkbox"
+                      />
+                      <span>Aplicar desconto<small>Reduza o preço por percentual.</small></span>
+                    </label>
+
+                    <input
+                      aria-label="Percentual de desconto"
+                      disabled={!menuForm.hasDiscount}
+                      max="90"
+                      min="0"
+                      onChange={(event) => (
+                        setMenuForm((current) => ({ ...current, discountPercent: event.target.value }))
+                      )}
+                      placeholder="0%"
+                      type="number"
+                      value={menuForm.discountPercent}
+                    />
+                  </div>
+
+                  <label className="availability-control">
+                    <input
+                      checked={menuForm.available}
+                      onChange={(event) => (
+                        setMenuForm((current) => ({ ...current, available: event.target.checked }))
+                      )}
+                      type="checkbox"
+                    />
+                    <span>Disponível para pedidos<small>Exibir este item no cardápio do cliente.</small></span>
+                  </label>
+
+                  {menuForm.itemType === 'com_acompanhamento' && (
+                    <section className="option-groups-builder" aria-label="Grupos de opções">
+                      <div className="option-groups-header">
+                        <div>
+                          <strong>Grupos de opções</strong>
+                          <span>{menuForm.optionGroups.length} grupo(s)</span>
                         </div>
+                        <button className="secondary-button option-add-button" onClick={addOptionGroup} type="button">
+                          <Plus size={17} aria-hidden="true" />
+                          Adicionar grupo
+                        </button>
+                      </div>
 
-                        <label className="form-field">
-                          <span>Nome do grupo</span>
-                          <input
-                            onChange={(event) => updateOptionGroup(groupIndex, { name: event.target.value })}
-                            placeholder="Ex: acompanhamentos/remover ingredientes"
-                            required
-                            type="text"
-                            value={group.name}
-                          />
-                        </label>
-
-                        <div className="form-row">
-                          <label className="form-field">
-                            <span>Tipo de seleção</span>
-                            <select
-                              onChange={(event) => (
-                                updateOptionGroup(groupIndex, {
-                                  selectionType: event.target.value as OptionGroupTipo,
-                                })
-                              )}
-                              value={group.selectionType}
-                            >
-                              <option value="unica">Única</option>
-                              <option value="multipla">Múltipla</option>
-                            </select>
-                          </label>
-
-                          <div className="option-flags">
-                            <label>
-                              <input
-                                checked={group.required}
-                                onChange={(event) => updateOptionGroup(groupIndex, { required: event.target.checked })}
-                                type="checkbox"
-                              />
-                              Obrigatório
-                            </label>
-                            <label className={group.selectionType === 'multipla' ? '' : 'is-disabled'}>
-                              <input
-                                checked={group.allowsQuantity}
-                                disabled={group.selectionType !== 'multipla'}
-                                onChange={(event) => updateOptionGroup(groupIndex, { allowsQuantity: event.target.checked })}
-                                type="checkbox"
-                              />
-                              Permite quantidade
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="option-list-editor">
-                          <div className="option-list-header">
-                            <span>Opções</span>
-                            <button
-                              className="secondary-button option-add-button"
-                              onClick={() => addOptionToGroup(groupIndex)}
-                              type="button"
-                            >
-                              <Plus size={16} aria-hidden="true" />
-                              Adicionar opção
-                            </button>
-                          </div>
-
-                          {group.options.map((option, optionIndex) => (
-                            <div className="option-editor-row" key={`option-${groupIndex}-${optionIndex}`}>
-                              <label className="form-field">
-                                <span>Nome</span>
-                                <input
-                                  onChange={(event) => (
-                                    updateOptionInGroup(groupIndex, optionIndex, { name: event.target.value })
-                                  )}
-                                  placeholder="Ex: calabresa/remover calabresa"
-                                  required
-                                  type="text"
-                                  value={option.name}
-                                />
-                              </label>
-
-                              <label className="form-field">
-                                <span>Preço adicional</span>
-                                <input
-                                  min="0"
-                                  onChange={(event) => (
-                                    updateOptionInGroup(groupIndex, optionIndex, { additionalPrice: event.target.value })
-                                  )}
-                                  step="0.01"
-                                  type="number"
-                                  value={option.additionalPrice}
-                                />
-                              </label>
-
+                      <div className="option-groups-list">
+                        {menuForm.optionGroups.map((group, groupIndex) => (
+                          <article className="option-group-panel" key={`option-group-${groupIndex}`}>
+                            <div className="option-group-panel-header">
+                              <strong>Grupo {groupIndex + 1}</strong>
                               <button
-                                aria-label={`Remover opção ${optionIndex + 1}`}
+                                aria-label={`Remover grupo ${groupIndex + 1}`}
                                 className="icon-action is-danger"
-                                disabled={group.options.length === 1}
-                                onClick={() => removeOptionFromGroup(groupIndex, optionIndex)}
+                                disabled={menuForm.optionGroups.length === 1}
+                                onClick={() => removeOptionGroup(groupIndex)}
                                 type="button"
                               >
                                 <Trash2 size={17} aria-hidden="true" />
                               </button>
                             </div>
-                          ))}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              )}
 
-              {!!menuError && <p className="form-error">{menuError}</p>}
+                            <label className="form-field">
+                              <span>Nome do grupo</span>
+                              <input
+                                onChange={(event) => updateOptionGroup(groupIndex, { name: event.target.value })}
+                                placeholder="Ex: acompanhamentos/remover ingredientes"
+                                required
+                                type="text"
+                                value={group.name}
+                              />
+                            </label>
+
+                            <div className="form-row">
+                              <label className="form-field">
+                                <span>Quantas opções o cliente pode escolher?</span>
+                                <select
+                                  aria-describedby={`selection-help-${groupIndex}`}
+                                  onChange={(event) => (
+                                    updateOptionGroup(groupIndex, {
+                                      selectionType: event.target.value as OptionGroupTipo,
+                                    })
+                                  )}
+                                  value={group.selectionType}
+                                >
+                                  <option value="unica">Apenas uma opção</option>
+                                  <option value="multipla">Várias opções</option>
+                                </select>
+                                <small className="option-field-help" id={`selection-help-${groupIndex}`}>
+                                  {group.selectionType === 'unica'
+                                    ? 'Escolhe uma opção deste grupo. Ex.: tamanho de 300 ml ou 500 ml.'
+                                    : 'Pode combinar opções deste grupo. Ex.: granola e leite em pó.'}
+                                </small>
+                              </label>
+
+                              <div className="option-flags">
+                                <label>
+                                  <input
+                                    checked={group.required}
+                                    onChange={(event) => updateOptionGroup(groupIndex, { required: event.target.checked })}
+                                    type="checkbox"
+                                  />
+                                  <span>Obrigatório<small className="option-field-help">Se marcado, o cliente precisa selecionar pelo menos uma opção deste grupo.</small></span>
+                                </label>
+                                <label className={group.selectionType === 'multipla' ? '' : 'is-disabled'}>
+                                  <input
+                                    checked={group.allowsQuantity}
+                                    disabled={group.selectionType !== 'multipla'}
+                                    onChange={(event) => updateOptionGroup(groupIndex, { allowsQuantity: event.target.checked })}
+                                    type="checkbox"
+                                  />
+                                  <span>Permitir repetir uma opção<small className="option-field-help">Ex.: 2 porções de granola. Disponível para várias opções.</small></span>
+                                </label>
+                              </div>
+                            </div>
+
+                            <div className="option-list-editor">
+                              <div className="option-list-header">
+                                <span>Opções</span>
+                                <button
+                                  className="secondary-button option-add-button"
+                                  onClick={() => addOptionToGroup(groupIndex)}
+                                  type="button"
+                                >
+                                  <Plus size={16} aria-hidden="true" />
+                                  Adicionar opção
+                                </button>
+                              </div>
+
+                              {group.options.map((option, optionIndex) => (
+                                <div className="option-editor-row" key={`option-${groupIndex}-${optionIndex}`}>
+                                  <label className="form-field">
+                                    <span>Nome</span>
+                                    <input
+                                      onChange={(event) => (
+                                        updateOptionInGroup(groupIndex, optionIndex, { name: event.target.value })
+                                      )}
+                                      placeholder="Ex: calabresa/remover calabresa"
+                                      required
+                                      type="text"
+                                      value={option.name}
+                                    />
+                                  </label>
+
+                                  <label className="form-field">
+                                    <span>Preço adicional</span>
+                                    <input
+                                      min="0"
+                                      onChange={(event) => (
+                                        updateOptionInGroup(groupIndex, optionIndex, { additionalPrice: event.target.value })
+                                      )}
+                                      step="0.01"
+                                      type="number"
+                                      value={option.additionalPrice}
+                                    />
+                                  </label>
+
+                                  <button
+                                    aria-label={`Remover opção ${optionIndex + 1}`}
+                                    className="icon-action is-danger"
+                                    disabled={group.options.length === 1}
+                                    onClick={() => removeOptionFromGroup(groupIndex, optionIndex)}
+                                    type="button"
+                                  >
+                                    <Trash2 size={17} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {!!menuError && <p className="form-error">{menuError}</p>}
+                </div>
+                <ProductPreview form={menuForm} />
+              </div>
 
               <div className="modal-actions">
                 <button className="secondary-button" onClick={closeMenuModal} type="button">
@@ -2043,6 +2529,51 @@ export function AdminDashboardPage() {
                 {imageCrop.isSaving ? 'Salvando...' : 'Salvar recorte'}
               </button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {cancellingOrder && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="menu-modal cancellation-modal" aria-labelledby="cancellation-modal-title" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div>
+                <p className="login-kicker">Cancelamento</p>
+                <h2 id="cancellation-modal-title">Cancelar {getDisplayOrderId(cancellingOrder.id)}?</h2>
+              </div>
+              <button aria-label="Fechar confirmação" className="icon-action" disabled={busyOrderIds.has(cancellingOrder.id)}
+                onClick={() => setCancellingOrder(null)} type="button"><X size={19} aria-hidden="true" /></button>
+            </div>
+            <form className="cancellation-form" onSubmit={handleCancelOrder}>
+              <div className="cancellation-warning">
+                <AlertCircle size={20} aria-hidden="true" />
+                <div>
+                  <strong>O pedido será retirado da fila imediatamente.</strong>
+                  <p>Etapa atual: {STATUS_LABELS[cancellingOrder.status]}. O cliente verá o motivo e o registro do reembolso simulado. Esta ação não pode ser desfeita.</p>
+                </div>
+              </div>
+              <label className="form-field">
+                <span>Motivo do cancelamento</span>
+                <textarea autoFocus required minLength={5} maxLength={300} rows={4}
+                  placeholder="Ex.: item indisponível na cozinha ou solicitação do cliente."
+                  value={cancellationReason} onChange={event => setCancellationReason(event.target.value)} />
+              </label>
+              <div className="refund-preview">
+                <span>Como funciona o reembolso nesta demonstração</span>
+                <strong>{cancellingOrder.paymentMethod ? formatCurrency(cancellingOrder.total) : 'Não aplicável'}</strong>
+                <p>{cancellingOrder.paymentMethod
+                  ? `${cancellingOrder.paymentMethod === 'pix' ? 'PIX' : 'Cartão'} receberá o status “Reembolso simulado concluído”. Nenhum valor real será movimentado.`
+                  : 'Este pedido não possui forma de pagamento registrada, então não haverá reembolso.'}</p>
+              </div>
+              {!!cancellationError && <p className="form-error" role="alert">{cancellationError}</p>}
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" disabled={busyOrderIds.has(cancellingOrder.id)} onClick={() => setCancellingOrder(null)}>Manter pedido</button>
+                <button className="danger-confirm-button" type="submit"
+                  disabled={busyOrderIds.has(cancellingOrder.id) || cancellationReason.trim().length < 5}>
+                  {busyOrderIds.has(cancellingOrder.id) ? 'Cancelando...' : 'Confirmar cancelamento'}
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       )}

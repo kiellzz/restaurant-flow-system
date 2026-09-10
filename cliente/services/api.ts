@@ -3,13 +3,34 @@ import type { CartItem } from '@/contexts/CartContext';
 export type ApiMenuCategory = 'Lanches' | 'Pratos principais' | 'Bebidas' | 'Sobremesas';
 export type ApiPaymentMethod = 'pix' | 'cartao' | null;
 export type CheckoutPaymentMethod = Exclude<ApiPaymentMethod, null>;
-export type ApiOrderStatus = 'recebido' | 'em_preparo' | 'pronto' | 'entregue';
+export type ApiOrderStatus = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'cancelado';
 export type ApiDeliveryConfirmation = 'pendente' | 'confirmado' | 'nao_entregue';
 export type ApiDeliveryResolution = {
   descricao: string;
   atendente: string;
   resolvidoEm: string;
 };
+export type ApiCancellationRequest = {
+  motivo: string;
+  status: 'pendente' | 'aprovada' | 'recusada';
+  solicitadoEm: string;
+  revisadoEm?: string | null;
+  atendente?: string | null;
+};
+export type ApiOrderCancellation = {
+  origem: 'cliente' | 'equipe';
+  motivo?: string | null;
+  atendente?: string | null;
+  statusAnterior: Exclude<ApiOrderStatus, 'entregue' | 'cancelado'>;
+  canceladoEm: string;
+};
+export type ApiOrderRefund = {
+  status: 'concluido_simulado' | 'nao_aplicavel';
+  valor: number;
+  formaPagamento: 'pix' | 'cartao' | 'nao_informada';
+  processadoEm: string;
+};
+export type ApiOrderOrigin = 'cliente' | 'manual';
 export type RealtimeEventType = 'connection:open' | 'orders:changed' | 'menu:changed' | 'demo:reset';
 export type ApiMenuItemTipo = 'simples' | 'com_acompanhamento';
 export type ApiOptionGroupTipo = 'unica' | 'multipla';
@@ -70,11 +91,17 @@ export type ApiOrder = {
     opcoesSelecionadas?: ApiSelectedOption[];
     precoUnitarioFinal?: number | null;
   }[];
+  observacaoGeral?: string;
   total: number;
   formaPagamento: ApiPaymentMethod;
+  origemPedido?: ApiOrderOrigin;
   status: ApiOrderStatus;
   confirmacaoEntrega?: ApiDeliveryConfirmation;
   resolucaoEntrega?: ApiDeliveryResolution | null;
+  solicitacaoCancelamento?: ApiCancellationRequest | null;
+  cancelamento?: ApiOrderCancellation | null;
+  reembolso?: ApiOrderRefund | null;
+  historicoEtapas?: { status: ApiOrderStatus; registradoEm: string }[];
   criadoEm: string;
 };
 
@@ -129,14 +156,15 @@ async function requestJson<TResponse>(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na API: ${response.status}`);
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.erro || `Erro na API: ${response.status}`);
   }
 
   return response.json() as Promise<TResponse>;
 }
 
-export async function fetchMenuItems() {
-  return requestJson<ApiMenuItem[]>('/api/menu');
+export async function fetchMenuItems(signal?: AbortSignal) {
+  return requestJson<ApiMenuItem[]>('/api/menu', { signal });
 }
 
 export async function fetchOrders() {
@@ -149,6 +177,20 @@ export async function updateDeliveryConfirmation(
 ) {
   return requestJson<ApiOrder>(`/api/orders/${orderId}/delivery-confirmation`, {
     body: JSON.stringify({ confirmacaoEntrega }),
+    method: 'PATCH',
+  });
+}
+
+export async function cancelCustomerOrder(orderId: string) {
+  return requestJson<ApiOrder>(`/api/orders/${orderId}/cancellation`, {
+    body: JSON.stringify({ origem: 'cliente' }),
+    method: 'PATCH',
+  });
+}
+
+export async function requestCustomerOrderCancellation(orderId: string, motivo: string) {
+  return requestJson<ApiOrder>(`/api/orders/${orderId}/cancellation-request`, {
+    body: JSON.stringify({ motivo }),
     method: 'PATCH',
   });
 }

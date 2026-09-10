@@ -1,12 +1,33 @@
 export type ApiMenuCategory = 'Lanches' | 'Pratos principais' | 'Bebidas' | 'Sobremesas';
-export type ApiOrderStatus = 'recebido' | 'em_preparo' | 'pronto' | 'entregue';
+export type ApiOrderStatus = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'cancelado';
 export type ApiDeliveryConfirmation = 'pendente' | 'confirmado' | 'nao_entregue';
 export type ApiDeliveryResolution = {
   descricao: string;
   atendente: string;
   resolvidoEm: string;
 };
+export type ApiCancellationRequest = {
+  motivo: string;
+  status: 'pendente' | 'aprovada' | 'recusada';
+  solicitadoEm: string;
+  revisadoEm?: string | null;
+  atendente?: string | null;
+};
+export type ApiOrderCancellation = {
+  origem: 'cliente' | 'equipe';
+  motivo?: string | null;
+  atendente?: string | null;
+  statusAnterior: Exclude<ApiOrderStatus, 'entregue' | 'cancelado'>;
+  canceladoEm: string;
+};
+export type ApiOrderRefund = {
+  status: 'concluido_simulado' | 'nao_aplicavel';
+  valor: number;
+  formaPagamento: 'pix' | 'cartao' | 'nao_informada';
+  processadoEm: string;
+};
 export type ApiPaymentMethod = 'pix' | 'cartao' | null;
+export type ApiOrderOrigin = 'cliente' | 'manual';
 export type RealtimeEventType = 'connection:open' | 'orders:changed' | 'menu:changed' | 'demo:reset';
 export type ApiMenuItemTipo = 'simples' | 'com_acompanhamento';
 export type ApiOptionGroupTipo = 'unica' | 'multipla';
@@ -67,11 +88,17 @@ export type ApiOrder = {
     opcoesSelecionadas?: ApiSelectedOption[];
     precoUnitarioFinal?: number | null;
   }[];
+  observacaoGeral?: string;
   total: number;
   formaPagamento: ApiPaymentMethod;
+  origemPedido?: ApiOrderOrigin;
   status: ApiOrderStatus;
   confirmacaoEntrega?: ApiDeliveryConfirmation;
   resolucaoEntrega?: ApiDeliveryResolution | null;
+  solicitacaoCancelamento?: ApiCancellationRequest | null;
+  cancelamento?: ApiOrderCancellation | null;
+  reembolso?: ApiOrderRefund | null;
+  historicoEtapas?: { status: ApiOrderStatus; registradoEm: string }[];
   criadoEm: string;
 };
 
@@ -91,8 +118,10 @@ export type CreateOrderPayload = {
     opcoesSelecionadas?: ApiSelectedOption[];
     precoUnitarioFinal?: number;
   }[];
+  observacaoGeral?: string;
   total: number;
   formaPagamento?: ApiPaymentMethod;
+  origemPedido?: ApiOrderOrigin;
 };
 
 export type MenuItemPayload = {
@@ -177,6 +206,20 @@ export function createOrder(payload: CreateOrderPayload) {
 export function updateOrderStatus(orderId: string, status: ApiOrderStatus) {
   return requestJson<ApiOrder>(`/api/orders/${orderId}/status`, {
     body: JSON.stringify({ status }),
+    method: 'PATCH',
+  });
+}
+
+export function cancelOrder(orderId: string, motivo: string, atendente: string) {
+  return requestJson<ApiOrder>(`/api/orders/${orderId}/cancellation`, {
+    body: JSON.stringify({ origem: 'equipe', motivo, atendente }),
+    method: 'PATCH',
+  });
+}
+
+export function reviewCancellationRequest(orderId: string, decisao: 'aprovada' | 'recusada', atendente: string) {
+  return requestJson<ApiOrder>(`/api/orders/${orderId}/cancellation-review`, {
+    body: JSON.stringify({ decisao, atendente }),
     method: 'PATCH',
   });
 }

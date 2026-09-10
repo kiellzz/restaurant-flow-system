@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
+  <rect width="480" height="360" fill="#222226"/>
+  <circle cx="240" cy="166" r="98" fill="#2b2b31"/>
+  <g fill="none" stroke="#a5a5b3" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="240" cy="166" r="58"/>
+    <circle cx="240" cy="166" r="42" stroke="#686874" stroke-width="3"/>
+    <path d="M151 118v31q0 14 12 14t12-14v-31m-12 0v96m161 0v-96q-17 14-17 43h17"/>
+  </g>
+  <text x="240" y="302" text-anchor="middle" fill="#a5a5b3" font-family="Arial, sans-serif" font-size="14" letter-spacing="2">SEM FOTO</text>
+</svg>

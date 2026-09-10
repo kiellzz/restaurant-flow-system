@@ -1,9 +1,11 @@
 import { Colors } from '@/constants/Colors';
 import { CheckoutModal, PaymentMethod } from '@/components/CheckoutModal';
+import { ItemCustomizationModal } from '@/components/ItemCustomizationModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import type { CartItem } from '@/contexts/CartContext';
-import { CheckoutPaymentMethod, createOrder } from '@/services/api';
+import { CheckoutPaymentMethod, createOrder, fetchMenuItems } from '@/services/api';
+import { mapApiMenuItem, type MenuItemData } from '@/utils/menuItem';
 import { getFoodImage } from '@/utils/imageHelper';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -52,10 +54,46 @@ export default function CartScreen() {
     removeItem,
     totalItems,
     totalPrice,
+    updateItem,
+    canCheckout,
+    recoveryNotices,
+    itemIssues,
+    validationStatus,
+    retryValidation,
   } = useCart();
   const [isCheckoutModalVisible, setIsCheckoutModalVisible] = React.useState(false);
+  const [editing, setEditing] = React.useState<{ original: CartItem; item: MenuItemData } | null>(null);
+  const [loadingEditKey, setLoadingEditKey] = React.useState<string | null>(null);
+  const [editError, setEditError] = React.useState('');
+  const editRequest = React.useRef(0);
+
+  React.useEffect(() => () => { editRequest.current += 1; }, []);
+
+  async function editCartItem(original: CartItem) {
+    const request = ++editRequest.current;
+    setLoadingEditKey(original.cartKey);
+    setEditError('');
+    try {
+      const menu = await fetchMenuItems();
+      if (request !== editRequest.current) return;
+      const current = menu.find(item => item._id === original.id && item.disponivel);
+      if (!current) {
+        setEditError('Este item não está mais disponível no cardápio. Seu carrinho foi mantido.');
+        return;
+      }
+      setEditing({ original, item: mapApiMenuItem(current) });
+    } catch {
+      if (request === editRequest.current) setEditError('Não foi possível carregar as opções. Tente editar novamente.');
+    } finally {
+      if (request === editRequest.current) setLoadingEditKey(null);
+    }
+  }
 
   function resetCartPage() {
+    editRequest.current += 1;
+    setEditing(null);
+    setLoadingEditKey(null);
+    setEditError('');
     setIsCheckoutModalVisible(false);
     clearCart();
   }
@@ -87,10 +125,12 @@ export default function CartScreen() {
   }
 
   function handleCheckoutPress() {
+    if (!canCheckout) return;
     setIsCheckoutModalVisible(true);
   }
 
   async function handlePaymentConfirm(paymentMethod: PaymentMethod) {
+    if (!canCheckout) throw new Error('Revise o carrinho antes de finalizar.');
     const paymentLabel = paymentMethod === 'pix' ? 'PIX' : 'Cartão de Crédito/Débito';
     const apiPaymentMethod: CheckoutPaymentMethod = paymentMethod === 'pix' ? 'pix' : 'cartao';
 
@@ -114,9 +154,26 @@ export default function CartScreen() {
     }
   }
 
+  const recoveryBanner = (
+    <View style={styles.recoveryBanner}>
+      {recoveryNotices.map(message => <Text key={message} style={styles.recoveryText}>{message}</Text>)}
+      {validationStatus === 'checking' && cartItems.length > 0 && <Text style={styles.recoveryText}>Conferindo preços e disponibilidade…</Text>}
+      {validationStatus === 'error' && cartItems.length > 0 && (
+        <>
+          <Text accessibilityRole="alert" style={styles.recoveryText}>Seu carrinho foi mantido. Conecte-se para conferir o cardápio antes de finalizar.</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => void retryValidation()} style={styles.retryButton}>
+            <Text style={styles.editButtonText}>Tentar novamente</Text>
+          </TouchableOpacity>
+        </>
+      )}
+      {Object.keys(itemIssues).length > 0 && <Text accessibilityRole="alert" style={styles.recoveryText}>Revise os itens sinalizados abaixo para continuar.</Text>}
+    </View>
+  );
+
   if (cartItems.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
+        {recoveryBanner}
         <View style={styles.content}>
           <View style={styles.iconBox}>
             <Feather name="shopping-bag" size={32} color="#D4D4DC" />
@@ -148,7 +205,9 @@ export default function CartScreen() {
         keyExtractor={item => item.cartKey}
         style={styles.scrollArea}
         contentContainerStyle={styles.list}
+        ListFooterComponent={editError ? <Text accessibilityRole="alert" style={styles.editError}>{editError}</Text> : null}
         ListHeaderComponent={() => (
+          <>
           <View style={styles.header}>
             <TouchableOpacity
               accessibilityRole="button"
@@ -178,12 +237,13 @@ export default function CartScreen() {
               <Text style={styles.clearButtonText}>Limpar</Text>
             </TouchableOpacity>
           </View>
+          {recoveryBanner}
+          </>
         )}
         renderItem={({ item }) => {
           const unitPrice = item.precoUnitarioFinal;
           const subtotal = unitPrice * item.quantity;
           const hasMultipleUnits = item.quantity > 1;
-          const canAdjustQuantity = item.tipo !== 'com_acompanhamento';
           const optionsSummary = getCartItemOptionsSummary(item);
           const hasDetails = Boolean(optionsSummary || item.observacao);
 
@@ -218,13 +278,26 @@ export default function CartScreen() {
                   )}
                 </View>
               )}
+              {itemIssues[item.cartKey] && <Text accessibilityRole="alert" style={styles.editError}>{itemIssues[item.cartKey]}</Text>}
 
               <View style={styles.itemActions}>
                 <View style={styles.subtotalBlock}>
                   <Text style={styles.subtotalLabel}>Subtotal</Text>
                   <Text style={styles.subtotal}>R$ {formatPrice(subtotal)}</Text>
                 </View>
-                {canAdjustQuantity ? (
+                <View style={styles.customActions}>
+                  {(item.tipo === 'com_acompanhamento' || itemIssues[item.cartKey]) && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Editar ${item.name}`}
+                      disabled={loadingEditKey !== null}
+                      onPress={() => editCartItem(item)}
+                      style={styles.editButton}
+                    >
+                      <Feather name="edit-2" size={16} color="#E4E4EB" />
+                      <Text style={styles.editButtonText}>{loadingEditKey === item.cartKey ? 'Abrindo...' : 'Editar'}</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.quantityControl}>
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -244,18 +317,7 @@ export default function CartScreen() {
                       <Feather name="plus" size={18} color={Colors.white} />
                     </TouchableOpacity>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remover ${item.name}`}
-                    activeOpacity={0.86}
-                    onPress={() => removeItem(item.cartKey)}
-                    style={styles.removeCustomButton}
-                  >
-                    <Feather name="trash-2" size={18} color="#F08080" />
-                    <Text style={styles.removeCustomText}>Remover</Text>
-                  </TouchableOpacity>
-                )}
+                </View>
               </View>
             </View>
           );
@@ -277,7 +339,9 @@ export default function CartScreen() {
           accessibilityRole="button"
           activeOpacity={0.9}
           onPress={handleCheckoutPress}
-          style={styles.checkoutButton}
+          disabled={!canCheckout}
+          accessibilityState={{ disabled: !canCheckout }}
+          style={[styles.checkoutButton, !canCheckout && { opacity: 0.45 }]}
         >
           <Text style={styles.checkoutButtonText}>Finalizar pedido</Text>
           <Feather name="arrow-right" size={20} color={Colors.white} />
@@ -290,11 +354,32 @@ export default function CartScreen() {
         totalPrice={totalPrice}
         visible={isCheckoutModalVisible}
       />
+      {editing && (
+        <ItemCustomizationModal
+          key={editing.original.cartKey}
+          item={editing.item}
+          initialOptions={editing.original.opcoesSelecionadas}
+          initialObservation={editing.original.observacao}
+          editing
+          onClose={() => setEditing(null)}
+          onSave={(item, config) => {
+            updateItem(editing.original.cartKey, item, config);
+            setEditing(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  recoveryBanner: { gap: 8, marginBottom: 12 },
+  recoveryText: { color: '#C4C4CE', fontSize: 12, lineHeight: 19 },
+  retryButton: { alignSelf: 'flex-start', padding: 12, borderRadius: 10, backgroundColor: '#303035' },
+  customActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 4, flex: 1 },
+  editButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#28282D' },
+  editButtonText: { color: '#E4E4EB', fontSize: 12, fontWeight: '500' },
+  editError: { color: '#F08080', fontSize: 13, lineHeight: 20, paddingVertical: 12 },
   container: { flex: 1, backgroundColor: CART_BACKGROUND },
   scrollArea: { flex: 1 },
   list: { padding: 20, paddingBottom: 8 },
@@ -360,11 +445,6 @@ const styles = StyleSheet.create({
     color: '#F5F5F7', fontSize: 14, fontWeight: '600', minWidth: 24,
     textAlign: 'center', fontVariant: ['tabular-nums'],
   },
-  removeCustomButton: {
-    alignItems: 'center', flexDirection: 'row', gap: 7,
-    borderRadius: 12, minHeight: 44, paddingHorizontal: 10,
-  },
-  removeCustomText: { color: '#F08080', fontSize: 12, fontWeight: '500' },
   subtotal: { color: '#F5F5F7', fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
   subtotalBlock: { flexShrink: 1, gap: 3 },
   subtotalLabel: { color: '#A6A6B0', fontSize: 11, fontWeight: '400' },
