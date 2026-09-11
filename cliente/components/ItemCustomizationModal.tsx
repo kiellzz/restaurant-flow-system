@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   customizationBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
   },
   customizationSheet: {

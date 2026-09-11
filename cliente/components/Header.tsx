@@ -122,7 +122,7 @@ export function Header({
   }, []);
 
   React.useEffect(() => {
-    loadCustomerOrders({ silent: true });
+    const initialLoadTimer = setTimeout(() => void loadCustomerOrders({ silent: true }), 0);
 
     const unsubscribe = subscribeToRealtimeEvents(event => {
       if (event.type === 'orders:changed' || event.type === 'demo:reset' || event.type === 'connection:open') {
@@ -130,7 +130,10 @@ export function Header({
       }
     });
 
-    return unsubscribe;
+    return () => {
+      clearTimeout(initialLoadTimer);
+      unsubscribe();
+    };
   }, [loadCustomerOrders]);
 
   React.useEffect(() => {
@@ -550,7 +553,7 @@ const styles = StyleSheet.create({
     paddingTop: 64,
   },
   modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
   },
   tableSheet: {

@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Animated,
   StyleSheet,
@@ -16,8 +16,8 @@ type BottomBarProps = {
 };
 
 export function BottomBar({ totalItems, totalPrice }: BottomBarProps) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const [scaleAnim] = useState(() => new Animated.Value(1));
+  const [opacityAnim] = useState(() => new Animated.Value(1));
   const selectedItemsLabel = totalItems === 1
     ? '1 item selecionado'
     : `${totalItems} itens selecionados`;

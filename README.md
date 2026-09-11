@@ -1,9 +1,9 @@
 # Restaurant Flow System
 
 ![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)
-![React Native](https://img.shields.io/badge/React_Native-0.81-20232A?logo=react&logoColor=61DAFB)
-![Expo](https://img.shields.io/badge/Expo-54-000020?logo=expo&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-0.86-20232A?logo=react&logoColor=61DAFB)
+![Expo](https://img.shields.io/badge/Expo-57-000020?logo=expo&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
@@ -94,7 +94,7 @@ Pedidos manuais começam em `recebido` e percorrem as mesmas etapas operacionais
 
 | Camada | Tecnologias |
 | --- | --- |
-| Cliente | React Native 0.81, React 19, Expo SDK 54, Expo Router, TypeScript, Context API e AsyncStorage |
+| Cliente | React Native 0.86, React 19.2, Expo SDK 57, Expo Router, TypeScript, Context API e AsyncStorage |
 | Dashboard | React 19, Vite 7, TypeScript, React Router DOM e Lucide React |
 | Backend | Node.js, Express 4, Mongoose 8, MongoDB, dotenv e CORS |
 | Comunicação | HTTP/REST e WebSocket em `/ws` |
@@ -136,6 +136,9 @@ Crie `backend/.env` a partir de `backend/.env.example`. Se o arquivo já existir
 ```dotenv
 MONGODB_URI=mongodb://127.0.0.1:27017/restaurant-system
 PORT=3333
+DEMO_RESET_INTERVAL_MINUTES=30
+DEMO_RESET_ON_START=false
+CORS_ORIGINS=http://localhost:5173
 ```
 
 Para Atlas, use a URI do seu banco em `MONGODB_URI`.
@@ -186,6 +189,68 @@ Use as opções do Expo no terminal para abrir o aplicativo. Para iniciar direta
 No celular físico, configure `EXPO_PUBLIC_API_URL` com o IP do computador na rede, por exemplo `http://192.168.1.10:3333`, e mantenha os dispositivos na mesma rede. No emulador Android padrão, use `http://10.0.2.2:3333`. A porta da API precisa estar acessível ao dispositivo.
 
 As URLs de configuração devem conter apenas a origem do backend, sem o sufixo `/api`. Reinicie o servidor do cliente ou do dashboard após alterar seu `.env`.
+
+## Deploy no Render, Vercel e EAS
+
+O repositório contém [`render.yaml`](render.yaml), [`dashboard/vercel.json`](dashboard/vercel.json) e [`cliente/eas.json`](cliente/eas.json) preparados para as três plataformas.
+
+### Backend no Render
+
+Crie um **Blueprint** a partir deste repositório. O Render usará `backend` como diretório raiz, instalará com `npm ci`, iniciará com `npm start` e consultará `/health` para verificar o serviço.
+
+Preencha no Blueprint:
+
+```dotenv
+MONGODB_URI=mongodb+srv://...
+CORS_ORIGINS=https://seu-dashboard.vercel.app
+```
+
+O servidor restaura o estado inicial ao subir no Render e novamente a cada 30 minutos. O intervalo pode ser alterado por `DEMO_RESET_INTERVAL_MINUTES`. Em desenvolvimento, `DEMO_RESET_ON_START=false` evita apagar os dados ao reiniciar o servidor local.
+
+O plano gratuito do Render suspende o processo quando fica ocioso. Nesse período não há processo executando o temporizador; quando o serviço acorda, `DEMO_RESET_ON_START=true` restaura a demonstração antes de aceitar o novo ciclo. Para manter o reset no horário exato mesmo sem acessos, use uma instância sempre ativa ou um Cron Job externo.
+
+As imagens enviadas pelo dashboard são gravadas em disco. Em uma instância paga, monte um disco persistente em `/opt/render/project/src/backend/uploads` e defina o mesmo caminho em `UPLOAD_DIR`. No plano gratuito, prefira as imagens incluídas no projeto até que o upload seja migrado para armazenamento externo.
+
+### Dashboard na Vercel
+
+Crie um projeto com **Root Directory** igual a `dashboard`. A Vercel detectará o Vite; use `npm run build` e `dist` caso seja necessário preencher os campos manualmente. Cadastre:
+
+```dotenv
+VITE_API_URL=https://seu-backend.onrender.com
+```
+
+Depois de obter a URL final da Vercel, copie-a para `CORS_ORIGINS` no Render. Separe múltiplas origens com vírgulas.
+
+### Aplicativo com EAS
+
+Na pasta `cliente`, autentique-se e vincule o projeto à sua conta Expo:
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest init
+```
+
+Cadastre a URL pública da API nos ambientes de preview e produção:
+
+```bash
+npx eas-cli@latest env:set --environment preview --name EXPO_PUBLIC_API_URL --value https://seu-backend.onrender.com --visibility plaintext
+npx eas-cli@latest env:set --environment production --name EXPO_PUBLIC_API_URL --value https://seu-backend.onrender.com --visibility plaintext
+```
+
+Para gerar um APK instalável da demonstração:
+
+```bash
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Para gerar os binários de loja:
+
+```bash
+npx eas-cli@latest build --platform android --profile production
+npx eas-cli@latest build --platform ios --profile production
+```
+
+O identificador inicial é `com.ezequielborges.restaurantsystem` para Android e iOS. Ele deve ser revisado antes da primeira publicação, pois identifica definitivamente o aplicativo nas lojas.
 
 ## Acessos de demonstração
 

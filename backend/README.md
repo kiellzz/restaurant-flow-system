@@ -13,6 +13,9 @@ Backend (Node + Express + MongoDB) do restaurant-system - versão de teste/demo 
    ```
    MONGODB_URI=mongodb+srv://usuario:senha@cluster0.xxxxx.mongodb.net/restaurant-system?retryWrites=true&w=majority
    PORT=3333
+   DEMO_RESET_INTERVAL_MINUTES=30
+   DEMO_RESET_ON_START=false
+   CORS_ORIGINS=http://localhost:5173
    ```
 
 3. Popular o banco com o cardápio inicial:
@@ -38,7 +41,10 @@ Backend (Node + Express + MongoDB) do restaurant-system - versão de teste/demo 
 - `PATCH /api/orders/:id/delivery-confirmation` — cliente confirma recebimento ou informa que não recebeu
 - `PATCH /api/orders/:id/delivery-resolution` — registra a solução da ocorrência com `descricao` e `atendente`; o servidor grava `resolvidoEm`
 - `PATCH /api/orders/:id/cancellation` — cancela o pedido com motivo e origem. O cliente pode cancelar em `recebido`; a equipe também pode cancelar em `em_preparo` e `pronto`
-- `POST /api/reset` — apaga pedidos e restaura o cardápio original (botão "Resetar Demo" / cron externo)
+- `POST /api/reset` — apaga pedidos e restaura o cardápio original pelo botão "Resetar Demo"
+- `GET /health` — informa a saúde da API e o horário previsto do próximo reset
+
+O servidor agenda um reset automático da demonstração no intervalo definido em `DEMO_RESET_INTERVAL_MINUTES`. No Render, `DEMO_RESET_ON_START=true` também restaura a demonstração após deploy, reinício ou retomada de uma instância suspensa.
 
 ## Atendimento e ocorrências
 

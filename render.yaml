@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: restaurant-system-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "24.11.1"
+      - key: DEMO_RESET_INTERVAL_MINUTES
+        value: "30"
+      - key: DEMO_RESET_ON_START
+        value: "true"
+      - key: MONGODB_URI
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

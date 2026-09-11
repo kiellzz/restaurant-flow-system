@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend (Node + Express + MongoDB) do restaurant-system - demo/portfolio",
   "main": "server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",

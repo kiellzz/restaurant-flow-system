@@ -1,12 +1,13 @@
 const express = require('express');
 const fs = require('fs/promises');
 const path = require('path');
+const { uploadRoot } = require('../config/paths');
 const MenuItem = require('../models/MenuItem');
 const { broadcastRealtimeEvent } = require('../realtime');
 
 const router = express.Router();
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'menu');
+const UPLOAD_DIR = path.join(uploadRoot, 'menu');
 const MIME_EXTENSION_BY_TYPE = {
   jpeg: 'jpg',
   jpg: 'jpg',

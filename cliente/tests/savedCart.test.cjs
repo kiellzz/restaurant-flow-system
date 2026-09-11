@@ -88,7 +88,7 @@ test('storage writes are ordered so clearing cannot be overwritten by a delayed 
     async removeItem(key) { values.delete(key); calls.push('clear'); },
     async getItem(key) { return values.get(key) ?? null; },
   };
-  const { writeLocalState, readLocalState } = load('../services/localState.ts', () => ({ default: storage }));
+  const { writeLocalState, readLocalState } = load('../services/localState.ts', () => ({ __esModule: true, default: storage }));
   const saving = writeLocalState('cart', { version: 1, items: [line] });
   const clearing = writeLocalState('cart', null);
   await Promise.all([saving, clearing]);

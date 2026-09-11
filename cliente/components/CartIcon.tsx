@@ -1,7 +1,8 @@
 import React from 'react';
+import type { ColorValue } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-export function CartIcon({ color, size = 28 }: { color: string; size?: number }) {
+export function CartIcon({ color, size = 28 }: { color: ColorValue; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path

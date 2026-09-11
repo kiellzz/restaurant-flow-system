@@ -134,14 +134,12 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
   const activeOrders = orders.filter(isCustomerOrderActive);
   const completedOrders = orders.filter(order => !isCustomerOrderActive(order));
 
-  React.useEffect(() => {
-    if (visible) {
-      setHistoryOpen(false);
-      setExpandedIds(new Set());
-      setCancellingOrderId(null);
-      setCancellationReason('');
-    }
-  }, [visible]);
+  function resetView() {
+    setHistoryOpen(false);
+    setExpandedIds(new Set());
+    setCancellingOrderId(null);
+    setCancellationReason('');
+  }
 
   function toggleDetails(id: string) {
     setExpandedIds(current => {
@@ -164,7 +162,7 @@ export function CustomerOrdersModal({ visible, orders, loading, error, busyOrder
   }
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType="fade" onShow={resetView} onRequestClose={onClose}>
       <View style={styles.overlay}>
         <Pressable onPress={onClose} style={StyleSheet.absoluteFill} accessibilityLabel="Fechar pedidos" />
         <View style={styles.sheet} accessibilityViewIsModal>

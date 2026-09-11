@@ -79,12 +79,6 @@ export function FilterModal({
 }: FilterModalProps) {
   const [draftFilters, setDraftFilters] = React.useState<MenuFilters>(filters);
 
-  React.useEffect(() => {
-    if (visible) {
-      setDraftFilters(filters);
-    }
-  }, [filters, visible]);
-
   function handleCategoryPress(category: MenuCategoryFilter) {
     setDraftFilters(prev => ({
       ...prev,
@@ -107,6 +101,7 @@ export function FilterModal({
   return (
     <Modal
       animationType="fade"
+      onShow={() => setDraftFilters(filters)}
       transparent
       visible={visible}
       onRequestClose={onClose}
@@ -254,7 +249,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.64)',
   },
   sheet: {

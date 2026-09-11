@@ -19,7 +19,7 @@ import {
   subscribeToRealtimeEvents,
 } from '@/services/api';
 import { getCategoryImage } from '@/utils/imageHelper';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import {
@@ -111,7 +111,8 @@ export default function HomeScreen() {
   }, []);
 
   React.useEffect(() => {
-    loadMenu();
+    const timer = setTimeout(() => void loadMenu(), 0);
+    return () => clearTimeout(timer);
   }, [loadMenu]);
 
   React.useEffect(() => (
