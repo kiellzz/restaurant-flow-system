@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Restaurant Flow: uma demonstração completa do pedido do cliente até a operação do restaurante."
+    />
+    <meta name="theme-color" content="#111113" />
+    <meta property="og:title" content="Restaurant Flow" />
+    <meta
+      property="og:description"
+      content="Experimente o aplicativo do cliente e o painel operacional do restaurante."
+    />
+    <meta property="og:image" content="assets/dashboard.png" />
+    <title>Restaurant Flow — Do pedido à entrega</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-glow page-glow--red" aria-hidden="true"></div>
+    <div class="page-glow page-glow--amber" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#inicio" aria-label="Restaurant Flow — início">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M7 10.2a4.8 4.8 0 0 1 9.6 0c1.8.2 3.2 1.7 3.2 3.6 0 1.8-1.3 3.3-3 3.6V20H7.2v-2.6a3.65 3.65 0 0 1-.2-7.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M9.3 16v4m5.4-4v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span>Restaurant <strong>Flow</strong></span>
+      </a>
+
+      <nav class="site-nav" aria-label="Navegação principal">
+        <a href="#experiencia">Experiência</a>
+        <a href="https://github.com/kiellzz/restaurant-flow-system" target="_blank" rel="noreferrer">GitHub</a>
+        <a class="button button--small button--ghost" href="https://restaurant-flow-system.vercel.app/" target="_blank" rel="noreferrer">
+          Abrir painel
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.8 14.2 14.2 5.8m0 0H7.8m6.4 0v6.4"/></svg>
+        </a>
+      </nav>
+    </header>
+
+    <main id="inicio">
+      <section class="hero">
+        <div class="hero__content">
+          <div class="eyebrow"><span></span> Experiência completa para restaurantes</div>
+          <h1>Do pedido à entrega, <em>tudo no mesmo fluxo.</em></h1>
+          <p class="hero__lead">
+            Uma simulação integrada que conecta o cardápio do cliente à operação da equipe, com atualizações em tempo real em cada etapa.
+          </p>
+
+          <div class="hero__actions">
+            <a class="button button--primary" href="https://restaurant-flow-system.vercel.app/" target="_blank" rel="noreferrer">
+              Acessar dashboard
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12m-4.5-4.5L16 10l-4.5 4.5"/></svg>
+            </a>
+            <a class="button button--secondary" href="https://github.com/kiellzz/restaurant-flow-system/releases/latest/download/restaurante-system.apk" download>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 16h12"/></svg>
+              Baixar para Android
+            </a>
+          </div>
+
+          <div class="hero__meta" aria-label="Informações do aplicativo">
+            <span><i class="status-dot"></i> Demonstração online</span>
+            <span>APK · Android</span>
+            <span>Expo SDK 57</span>
+          </div>
+        </div>
+
+        <div class="product-showcase" aria-label="Prévia do Restaurant Flow">
+          <div class="dashboard-preview">
+            <div class="window-bar">
+              <span></span><span></span><span></span>
+              <div>restaurant-flow-system.vercel.app</div>
+            </div>
+            <img src="assets/dashboard.png" alt="Dashboard do restaurante com fila de pedidos" />
+          </div>
+          <div class="phone-preview">
+            <div class="phone-speaker"></div>
+            <img src="assets/cardapio.png" alt="Cardápio do aplicativo Restaurant Flow" />
+          </div>
+          <div class="live-card" aria-hidden="true">
+            <span class="live-card__icon">
+              <svg viewBox="0 0 20 20"><path d="M3 10a7 7 0 0 1 12-4.9M17 10a7 7 0 0 1-12 4.9M14.8 2.8l.2 2.7-2.7.2M5.2 17.2 5 14.5l2.7-.2"/></svg>
+            </span>
+            <span><small>Sincronização</small><strong>Em tempo real</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="experience" id="experiencia">
+        <div class="section-heading">
+          <div class="eyebrow"><span></span> Uma experiência conectada</div>
+          <h2>Dois lados. Uma única operação.</h2>
+          <p>Explore o fluxo como cliente no aplicativo e acompanhe cada pedido pelo painel da equipe.</p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-card__number">01</span>
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>
+            </div>
+            <h3>Aplicativo do cliente</h3>
+            <p>Cardápio, personalizações, carrinho e acompanhamento completo do pedido no celular.</p>
+          </article>
+
+          <article class="feature-card feature-card--accent">
+            <span class="feature-card__number">02</span>
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M7 8h4m-4 4h7"/></svg>
+            </div>
+            <h3>Painel da equipe</h3>
+            <p>Fila operacional, ocorrências, pedidos manuais e gestão do cardápio em uma interface direta.</p>
+          </article>
+
+          <article class="feature-card">
+            <span class="feature-card__number">03</span>
+            <div class="feature-card__icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7v5l3 2"/></svg>
+            </div>
+            <h3>Fluxo em tempo real</h3>
+            <p>Status, cancelamentos e confirmações sincronizados entre cliente, equipe e banco de dados.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div>
+          <div class="eyebrow"><span></span> Pronto para experimentar?</div>
+          <h2>Conheça o fluxo na prática.</h2>
+          <p>Abra o painel no navegador ou instale a versão Android para simular a jornada do cliente.</p>
+        </div>
+        <div class="cta__actions">
+          <a class="button button--primary" href="https://restaurant-flow-system.vercel.app/" target="_blank" rel="noreferrer">Abrir dashboard</a>
+          <a class="button button--secondary" href="https://github.com/kiellzz/restaurant-flow-system/releases/latest/download/restaurante-system.apk" download>Baixar APK</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand brand--footer" href="#inicio">
+        <span class="brand__mark" aria-hidden="true">R</span>
+        <span>Restaurant <strong>Flow</strong></span>
+      </a>
+      <p>Projeto demonstrativo desenvolvido para simular uma operação real de restaurante.</p>
+      <a href="https://github.com/kiellzz/restaurant-flow-system" target="_blank" rel="noreferrer">Ver código no GitHub <span>↗</span></a>
+    </footer>
+  </body>
+</html>

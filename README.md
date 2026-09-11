@@ -116,6 +116,7 @@ restaurant-system/
 ├── dashboard/
 │   ├── src/          # Painel, perfis de acesso e integração com a API
 │   └── tests/        # Testes de pedidos, personalização e permissões
+├── landing/           # Apresentação e links para o dashboard e o aplicativo
 └── README.md
 ```
 
@@ -251,6 +252,12 @@ npx eas-cli@latest build --platform ios --profile production
 ```
 
 O identificador inicial é `com.ezequielborges.restaurantsystem` para Android e iOS. Ele deve ser revisado antes da primeira publicação, pois identifica definitivamente o aplicativo nas lojas.
+
+### Landing page no GitHub Pages
+
+A pasta [`landing`](landing) contém uma apresentação estática com acesso ao dashboard e download do aplicativo Android. O workflow [`landing-pages.yml`](.github/workflows/landing-pages.yml) publica essa pasta automaticamente.
+
+Em **Settings > Pages**, selecione **GitHub Actions** como fonte. Como o APK ultrapassa o limite de 100 MiB para arquivos comuns do GitHub, publique `landing/restaurante-system.apk` como um arquivo de uma release normal com o nome exato `restaurante-system.apk`. O botão da página usa o endereço permanente da release mais recente.
 
 ## Acessos de demonstração
 
