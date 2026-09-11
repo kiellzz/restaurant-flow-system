@@ -14,6 +14,12 @@ Simulação completa de um fluxo de atendimento em restaurante, com aplicativo p
 
 > Projeto em desenvolvimento para demonstração e portfólio. Cardápio e pedidos são persistidos no MongoDB e sincronizados em tempo real. Autenticação e pagamentos são simulados, sem cobrança real.
 
+## Demonstração online
+
+**[Acessar a apresentação do Restaurant Flow →](https://kiellzz.github.io/restaurant-flow-system/)**
+
+A landing page reúne o acesso ao dashboard publicado e o download do aplicativo Android.
+
 ## Visão do projeto
 
 | Cardápio do cliente | Carrinho |
